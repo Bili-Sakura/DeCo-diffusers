@@ -48,7 +48,7 @@ We introduce a novel frequency-decoupled framework DeCo for pixel diffusion, whe
 <div class="content">
             <img src="./docs/static/images/intro.jpg" style="width: 100%;"><br>
 </div>
-
+- 🎉 DeCo has been accepted by CVPR 2026.
 - We achieve **1.62 FID** on ImageNet256x256 Benchmark with DeCo-XL/16.
 - We achieve **2.22 FID** on ImageNet512x512 Benchmark with DeCo-XL/16.
 - We achieve **0.86 overall score** on GenEval Benchmark with DeCo-XXL/16.
@@ -149,7 +149,7 @@ This repository is built based on [PixNerd](https://github.com/MCG-NJU/PixNerd) 
 If you find DeCo is useful in your research or applications, please consider giving us a star ⭐ and citing it by the following BibTeX entry.
 
 ```
-@misc{ma2025decofrequencydecoupledpixeldiffusion,
+@article{ma2025decofrequencydecoupledpixeldiffusion,
       title={DeCo: Frequency-Decoupled Pixel Diffusion for End-to-End Image Generation}, 
       author={Zehong Ma and Longhui Wei and Shuai Wang and Shiliang Zhang and Qi Tian},
       year={2025},
