@@ -103,6 +103,30 @@ python app.py --config ./configs_t2i/sft_res512.yaml --ckpt_path=./ckpts/t2i_DeC
 In class-to-image(ImageNet) experiments, We use [ADM evaluation suite](https://github.com/openai/guided-diffusion/tree/main/evaluations) to report FID. 
 In text-to-image experiments, we use BLIP3o dataset as training set and utilize GenEval and DPG to collect metrics.
 
++ Diffusers-native API
+```python
+from deco_diffusers import (
+    DeCoTransformer2DModel,
+    DeCoPixelAutoencoder,
+    DeCoFlowMatchEulerDiscreteScheduler,
+    DeCoPipeline,
+    load_transformer_from_legacy_lightning_checkpoint,
+)
+
+# Build directly from config-like kwargs
+transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
+scheduler = DeCoFlowMatchEulerDiscreteScheduler()
+vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
+pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+
+# Or load transformer weights from existing Lightning checkpoints
+transformer = load_transformer_from_legacy_lightning_checkpoint(
+    "/path/to/checkpoint.ckpt",
+    conditioning_type="class",
+    use_ema=True,
+)
+```
+
 + Environments
 ```bash
 # for installation (recommend python 3.10)

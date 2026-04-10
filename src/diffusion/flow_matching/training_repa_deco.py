@@ -72,7 +72,7 @@ class REPATrainer(BaseTrainer):
             )
         )
 
-        # DCT 配置
+        # DCT settings
         self.block_size = 8
         self.register_buffer("dct_mat", self._create_dct_matrix(self.block_size))
         self.register_buffer("freq_w", self._build_freq_weight(
@@ -103,7 +103,7 @@ class REPATrainer(BaseTrainer):
     @torch.compile()
     def _dct(self, x: torch.Tensor):
         """
-        8x8 block DCT, 返回 (B,C,Bh,Bw,bs,bs)
+        8x8 block DCT, returns (B,C,Bh,Bw,bs,bs)
         """
         bs = self.block_size
         B, C, H, W = x.shape
@@ -169,7 +169,7 @@ class REPATrainer(BaseTrainer):
         w_cb = q_to_weight(Q_cbcr)
         w_cr = q_to_weight(Q_cbcr)
 
-        # stack成 (1,C,1,1,8,8)
+        # stack to (1,C,1,1,8,8)
         w = torch.stack([w_y, w_cb, w_cr], dim=0)
         return w.unsqueeze(0).unsqueeze(2).unsqueeze(3)  # (1,3,1,1,8,8)
     
@@ -183,14 +183,14 @@ class REPATrainer(BaseTrainer):
     #     """
     #     os.makedirs(save_dir, exist_ok=True)
 
-    #     # 确保在 [0,1] 范围内
+    #     # Ensure values are within [0,1]
     #     # tensor = torch.clamp(tensor, 0, 1)
         
     #     B = tensor.size(0)
     #     for i in range(B):
     #         save_path = os.path.join(save_dir, f"{prefix}_{i:03d}.png")
     #         save_image(tensor[i], save_path)
-    #         print(f"✅ 已保存: {save_path}")
+    #         print(f"✅ Saved: {save_path}")
     
     def _impl_trainstep(self, net, ema_net, solver, x, y, metadata=None):
         raw_images = metadata["raw_image"]
