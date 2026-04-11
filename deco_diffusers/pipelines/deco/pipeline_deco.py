@@ -11,7 +11,7 @@ from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
 from diffusers.utils.torch_utils import randn_tensor
 
 from deco_diffusers.models.autoencoder import DeCoPixelAutoencoder
-from deco_diffusers.models.transformer_2d import DeCoTransformer2DModel
+from deco_diffusers.models.transformer_deco import DeCoTransformer2DModel
 from deco_diffusers.schedulers.scheduling_deco_flow_match_euler_discrete import DeCoFlowMatchEulerDiscreteScheduler
 
 

@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 
 from functools import lru_cache
-from src.models.layers.attention_op import attention
-from src.models.layers.rope import apply_rotary_emb, precompute_freqs_cis_ex2d as precompute_freqs_cis_2d
-from src.models.layers.time_embed import TimestepEmbedder as TimestepEmbedder
-from src.models.layers.patch_embed import Embed as Embed
-from src.models.layers.swiglu import SwiGLU as FeedForward
-from src.models.layers.rmsnorm import RMSNorm as Norm
+from deco_diffusers.models.layers.attention_op import attention
+from deco_diffusers.models.layers.rope import apply_rotary_emb, precompute_freqs_cis_ex2d as precompute_freqs_cis_2d
+from deco_diffusers.models.layers.time_embed import TimestepEmbedder as TimestepEmbedder
+from deco_diffusers.models.layers.patch_embed import Embed as Embed
+from deco_diffusers.models.layers.swiglu import SwiGLU as FeedForward
+from deco_diffusers.models.layers.rmsnorm import RMSNorm as Norm
 
 def modulate(x, shift, scale):
     return x * (1 + scale) + shift
@@ -198,6 +198,135 @@ class TextRefineBlock(nn.Module):
         return x
 
 
+class ResBlock(nn.Module):
+    """
+    A residual block that can optionally change the number of channels.
+    :param channels: the number of input channels.
+    """
+
+    def __init__(
+        self,
+        channels
+    ):
+        super().__init__()
+        self.channels = channels
+
+        self.in_ln = nn.LayerNorm(channels, eps=1e-6)
+        self.mlp = nn.Sequential(
+            nn.Linear(channels, channels, bias=True),
+            nn.SiLU(),
+            nn.Linear(channels, channels, bias=True),
+        )
+
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(channels, 3 * channels, bias=True)
+        )
+
+    def forward(self, x, y):
+        shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(y).chunk(3, dim=-1)
+        h = modulate(self.in_ln(x), shift_mlp, scale_mlp)
+        h = self.mlp(h)
+        return x + gate_mlp * h
+
+
+class FinalLayer(nn.Module):
+    """
+    The final layer adopted from DiT.
+    """
+    def __init__(self, model_channels, out_channels):
+        super().__init__()
+        self.norm_final = nn.LayerNorm(model_channels, elementwise_affine=False, eps=1e-6)
+        self.linear = nn.Linear(model_channels, out_channels, bias=True)
+
+    def forward(self, x):
+        x = self.norm_final(x)
+        x = self.linear(x)
+        return x
+
+class SimpleMLPAdaLN(nn.Module):
+    """
+    The MLP for Diffusion Loss.
+    :param in_channels: channels in the input Tensor.
+    :param model_channels: base channel count for the model.
+    :param out_channels: channels in the output Tensor.
+    :param z_channels: channels in the condition.
+    :param num_res_blocks: number of residual blocks per downsample.
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        model_channels,
+        out_channels,
+        z_channels,
+        num_res_blocks,
+        patch_size,
+        grad_checkpointing=False
+    ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.model_channels = model_channels
+        self.out_channels = out_channels
+        self.num_res_blocks = num_res_blocks
+        self.grad_checkpointing = grad_checkpointing
+        self.patch_size = patch_size
+
+        self.cond_embed = nn.Linear(z_channels, patch_size**2*model_channels)
+
+        self.input_proj = nn.Linear(in_channels, model_channels)
+        
+        res_blocks = []
+        for i in range(num_res_blocks):
+            res_blocks.append(ResBlock(
+                model_channels,
+            ))
+
+        self.res_blocks = nn.ModuleList(res_blocks)
+        self.final_layer = FinalLayer(model_channels, out_channels)
+
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        def _basic_init(module):
+            if isinstance(module, nn.Linear):
+                torch.nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+        self.apply(_basic_init)
+
+        # Zero-out adaLN modulation layers
+        for block in self.res_blocks:
+            nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
+            nn.init.constant_(block.adaLN_modulation[-1].bias, 0)
+
+        # Zero-out output layers
+        nn.init.constant_(self.final_layer.linear.weight, 0)
+        nn.init.constant_(self.final_layer.linear.bias, 0)
+
+    def forward(self, x, c):
+        """
+        Apply the model to an input batch.
+        :param x: an [N x C] Tensor of inputs.
+        :param t: a 1-D batch of timesteps.
+        :param c: conditioning from AR transformer.
+        :return: an [N x C] Tensor of outputs.
+        """
+        x = self.input_proj(x)
+        c = self.cond_embed(c)
+
+        y = c.reshape(c.shape[0], self.patch_size**2, -1)
+
+        if self.grad_checkpointing and not torch.jit.is_scripting():
+            for block in self.res_blocks:
+                x = checkpoint(block, x, y)
+        else:
+            for block in self.res_blocks:
+                x = block(x, y)
+
+        return self.final_layer(x)
+
 class PixNerDiT(nn.Module):
     def __init__(
             self,
@@ -235,14 +364,21 @@ class PixNerDiT(nn.Module):
             torch.randn(1, txt_max_length, hidden_size),
             requires_grad=True
         )
-        self.final_layer = NerfFinalLayer(decoder_hidden_size, in_channels)
-        encoder_blocks = nn.ModuleList([
+
+        self.blocks = nn.ModuleList([
             FlattenDiTBlock(self.hidden_size, self.num_groups) for _ in range(self.num_encoder_blocks)
         ])
-        decoder_blocks = nn.ModuleList([
-            NerfBlock(self.hidden_size, self.decoder_hidden_size, mlp_ratio=2) for _ in range(self.num_decoder_blocks)
-        ])
-        self.blocks = nn.ModuleList(encoder_blocks + decoder_blocks)
+        
+        self.dec_net = SimpleMLPAdaLN(
+            in_channels=self.decoder_hidden_size,
+            model_channels=self.decoder_hidden_size,
+            out_channels=self.in_channels,  # for vlb loss
+            z_channels=self.hidden_size,
+            num_res_blocks=self.num_decoder_blocks,
+            patch_size=self.patch_size,
+            grad_checkpointing=False
+        )
+
         self.text_refine_blocks = nn.ModuleList([
             TextRefineBlock(self.hidden_size, self.num_groups) for _ in range(self.num_text_blocks)
         ])
@@ -269,10 +405,6 @@ class PixNerDiT(nn.Module):
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
 
-        # Zero-out output layers:
-        nn.init.constant_(self.final_layer.linear.weight, 0)
-        nn.init.constant_(self.final_layer.linear.bias, 0)
-
     def forward(self, x, t, y):
         B, _, H, W = x.shape
         x = torch.nn.functional.unfold(x, kernel_size=self.patch_size, stride=self.patch_size).transpose(1, 2)
@@ -296,11 +428,8 @@ class PixNerDiT(nn.Module):
         s = s.view(batch_size * length, self.hidden_size)
         x = self.x_embedder(x)
 
-        for i in range(self.num_decoder_blocks):
-            def checkpoint_forward(x, s, block=self.blocks[i + self.num_encoder_blocks]):
-                return block(x, s)
-            x = checkpoint_forward(x, s)
-        x = self.final_layer(x)
+        x = self.dec_net(x, s)
+        
         x = x.transpose(1, 2)
         x = x.reshape(batch_size, length, -1)
         x = torch.nn.functional.fold(x.transpose(1, 2).contiguous(),
