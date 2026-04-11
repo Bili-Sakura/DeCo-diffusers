@@ -1,208 +1,94 @@
-#   vae:
-#     class_path: src.models.vae.LatentVAE
-#     init_args:
-#       precompute: true
-#       weight_path: /mnt/bn/wangshuai6/models/sd-vae-ft-ema/
-#   denoiser:
-#     class_path: src.models.denoiser.decoupled_improved_dit.DDT
-#     init_args:
-#       in_channels: 4
-#       patch_size: 2
-#       num_groups: 16
-#       hidden_size: &hidden_dim 1152
-#       num_blocks: 28
-#       num_encoder_blocks: 22
-#       num_classes: 1000
-#   conditioner:
-#     class_path: src.models.conditioner.LabelConditioner
-#     init_args:
-#       null_class: 1000
-#   diffusion_sampler:
-#     class_path: src.diffusion.stateful_flow_matching.sampling.EulerSampler
-#     init_args:
-#       num_steps: 250
-#       guidance: 3.0
-#       state_refresh_rate: 1
-#       guidance_interval_min: 0.3
-#       guidance_interval_max: 1.0
-#       timeshift: 1.0
-#       last_step: 0.04
-#       scheduler: *scheduler
-#       w_scheduler: src.diffusion.stateful_flow_matching.scheduling.LinearScheduler
-#       guidance_fn: src.diffusion.base.guidance.simple_guidance_fn
-#       step_fn: src.diffusion.stateful_flow_matching.sampling.ode_step_fn
-import random
-import os
-import torch
+from __future__ import annotations
+
 import argparse
-from omegaconf import OmegaConf
-from src.models.autoencoder.base import fp2uint8
-from src.diffusion.base.guidance import simple_guidance_fn
-from src.diffusion.flow_matching.adam_sampling import AdamLMSampler
-from src.diffusion.flow_matching.scheduling import LinearScheduler
-from PIL import Image
+from pathlib import Path
+
 import gradio as gr
-import tempfile
-from huggingface_hub import snapshot_download
+import torch
+
+from deco_diffusers import (
+    DeCoFlowMatchEulerDiscreteScheduler,
+    DeCoPipeline,
+    DeCoPixelAutoencoder,
+    load_transformer_from_legacy_lightning_checkpoint,
+)
 
 
-def instantiate_class(config):
-    kwargs = config.get("init_args", {})
-    class_module, class_name = config["class_path"].rsplit(".", 1)
-    module = __import__(class_module, fromlist=[class_name])
-    args_class = getattr(module, class_name)
-    return args_class(**kwargs)
+def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int) -> DeCoPipeline:
+    if pretrained_model_path is not None:
+        return DeCoPipeline.from_pretrained(pretrained_model_path)
 
-def load_model(weight_dict, denoiser):
-    prefix = "ema_denoiser."
-    for k, v in denoiser.state_dict().items():
-        try:
-            v.copy_(weight_dict["state_dict"][prefix + k])
-        except:
-            print(f"Failed to copy {prefix + k} to denoiser weight")
-    return denoiser
+    if legacy_ckpt_path is None:
+        raise ValueError("Either --pretrained-model-path or --legacy-ckpt-path must be provided")
 
-
-class Pipeline:
-    def __init__(self, vae, denoiser, conditioner, resolution):
-        self.vae = vae.cuda()
-        self.denoiser = denoiser.cuda()
-        self.conditioner = conditioner.cuda()
-        self.conditioner.compile()
-        self.resolution = resolution
-        self.tmp_dir = tempfile.TemporaryDirectory(prefix="traj_gifs_")
-        # self.denoiser.compile()
-
-    def __del__(self):
-        self.tmp_dir.cleanup()
-
-    @torch.no_grad()
-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
-    def __call__(self, y, neg_prompt, num_images, seed, image_height, image_width, num_steps, guidance, timeshift, order):
-        diffusion_sampler = AdamLMSampler(
-            order=order,
-            scheduler=LinearScheduler(),
-            guidance_fn=simple_guidance_fn,
-            num_steps=num_steps,
-            guidance=guidance,
-            timeshift=timeshift
-        )
-        generator = torch.Generator(device="cpu").manual_seed(seed)
-        image_height = image_height // 32 * 32
-        image_width = image_width // 32 * 32
-        self.denoiser.decoder_patch_scaling_h = image_height / 512
-        self.denoiser.decoder_patch_scaling_w = image_width / 512
-        xT = torch.randn((num_images, 3, image_height, image_width), device="cpu", dtype=torch.float32,
-                         generator=generator)
-        xT = xT.to("cuda")
-        with torch.no_grad():
-            condition, uncondition = conditioner([y,]*num_images, {"negative_prompt": neg_prompt})
+    transformer = load_transformer_from_legacy_lightning_checkpoint(
+        legacy_ckpt_path,
+        conditioning_type="class",
+        num_classes=num_classes,
+        in_channels=3,
+    )
+    scheduler = DeCoFlowMatchEulerDiscreteScheduler()
+    vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
+    return DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
 
 
-        # Sample images:
-        samples, trajs = diffusion_sampler(denoiser, xT, condition, uncondition, return_x_trajs=True)
-
-        def decode_images(samples):
-            samples = vae.decode(samples)
-            samples = fp2uint8(samples)
-            samples = samples.permute(0, 2, 3, 1).cpu().numpy()
-            images = []
-            for i in range(len(samples)):
-                image = Image.fromarray(samples[i])
-                images.append(image)
-            return images
-
-        def decode_trajs(trajs):
-            cat_trajs = torch.stack(trajs, dim=0).permute(1, 0, 2, 3, 4)
-            animations = []
-            for i in range(cat_trajs.shape[0]):
-                frames = decode_images(
-                    cat_trajs[i]
-                )
-                # 生成唯一文件名（结合seed和样本索引，避免冲突）
-                gif_filename = f"{random.randint(0, 100000)}.gif"
-                gif_path = os.path.join(self.tmp_dir.name, gif_filename)
-                frames[0].save(
-                    gif_path,
-                    format="GIF",
-                    append_images=frames[1:],
-                    save_all=True,
-                    duration=200,
-                    loop=0
-                )
-                animations.append(gif_path)
-            return animations
-
-        images = decode_images(samples)
-        animations = decode_trajs(trajs)
-
-        return images, animations
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="configs_t2i/sft_res512.yaml")
-    parser.add_argument("--resolution", type=int, default=512)
-    parser.add_argument("--model_id", type=str, default="MCG-NJU/PixNerd-XXL-P16-T2I")
-    parser.add_argument("--ckpt_path", type=str, default="models")
-
+def main():
+    parser = argparse.ArgumentParser(description="DeCo diffusers-native Gradio demo")
+    parser.add_argument("--pretrained-model-path", type=str, default=None)
+    parser.add_argument("--legacy-ckpt-path", type=str, default=None)
+    parser.add_argument("--num-classes", type=int, default=1000)
+    parser.add_argument("--server-name", type=str, default="0.0.0.0")
+    parser.add_argument("--server-port", type=int, default=23231)
     args = parser.parse_args()
-    if not os.path.exists(args.ckpt_path):
-        snapshot_download(repo_id=args.model_id, local_dir=args.ckpt_path)
-        ckpt_path = os.path.join(args.ckpt_path, "model.ckpt")
-    else:
-        ckpt_path = args.ckpt_path
 
-    config = OmegaConf.load(args.config)
-    vae_config = config.model.vae
-    denoiser_config = config.model.denoiser
-    conditioner_config = config.model.conditioner
+    pipe = _load_pipeline(
+        pretrained_model_path=args.pretrained_model_path,
+        legacy_ckpt_path=args.legacy_ckpt_path,
+        num_classes=args.num_classes,
+    )
 
-    vae = instantiate_class(vae_config)
-    denoiser = instantiate_class(denoiser_config)
-    conditioner = instantiate_class(conditioner_config)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    pipe = pipe.to(device)
 
+    def generate(class_label: int, batch_size: int, seed: int, steps: int, guidance: float, height: int, width: int):
+        generator = torch.Generator(device=device).manual_seed(int(seed))
+        class_labels = torch.full((batch_size,), int(class_label), device=device, dtype=torch.long)
 
-    ckpt = torch.load(ckpt_path, map_location="cpu")
-    denoiser = load_model(ckpt, denoiser)
-    denoiser = denoiser.cuda()
-    vae = vae.cuda()
-    denoiser.eval()
-
-
-    pipeline = Pipeline(vae, denoiser, conditioner, args.resolution)
+        images = pipe(
+            batch_size=batch_size,
+            class_labels=class_labels,
+            num_inference_steps=int(steps),
+            guidance_scale=float(guidance),
+            height=int(height),
+            width=int(width),
+            generator=generator,
+            output_type="pil",
+        ).images
+        return images
 
     with gr.Blocks() as demo:
-        # gr.Markdown(f"config:{args.config}\n\n ckpt_path:{args.ckpt_path}")
+        gr.Markdown("## DeCo Diffusers Demo (Class-to-Image)")
         with gr.Row():
             with gr.Column(scale=1):
-                num_steps = gr.Slider(minimum=1, maximum=100, step=1, label="num steps", value=25)
-                guidance = gr.Slider(minimum=0.1, maximum=10.0, step=0.1, label="CFG", value=4.0)
-                image_height = gr.Slider(minimum=128, maximum=1024, step=32, label="image height", value=512)
-                image_width = gr.Slider(minimum=128, maximum=1024, step=32, label="image width", value=512)
-                num_images = gr.Slider(minimum=1, maximum=4, step=1, label="num images", value=4)
-                label = gr.Textbox(label="positive prompt", value="A beautiful woman.")
-                neg_label = gr.Textbox(label="negative prompt", value="Unrealistic, JPEG artifacts.")
-                seed = gr.Slider(minimum=0, maximum=1000000, step=1, label="seed", value=0)
-                timeshift = gr.Slider(minimum=0.1, maximum=5.0, step=0.1, label="timeshift", value=3.0)
-                order = gr.Slider(minimum=1, maximum=4, step=1, label="order", value=2)
+                class_label = gr.Number(label="Class label", value=0, precision=0)
+                batch_size = gr.Slider(minimum=1, maximum=8, value=4, step=1, label="Batch size")
+                seed = gr.Slider(minimum=0, maximum=1_000_000, value=42, step=1, label="Seed")
+                steps = gr.Slider(minimum=1, maximum=100, value=50, step=1, label="Inference steps")
+                guidance = gr.Slider(minimum=1.0, maximum=10.0, value=4.0, step=0.1, label="Guidance scale")
+                height = gr.Slider(minimum=128, maximum=1024, value=256, step=32, label="Height")
+                width = gr.Slider(minimum=128, maximum=1024, value=256, step=32, label="Width")
+                run_button = gr.Button("Generate")
             with gr.Column(scale=2):
-                btn = gr.Button("Generate")
-                output_sample = gr.Gallery(label="Images", columns=2, rows=2)
-            with gr.Column(scale=2):
-                output_trajs = gr.Gallery(label="Trajs of Diffusion", columns=2, rows=2)
+                gallery = gr.Gallery(label="Generated images", columns=2, rows=2)
 
-        btn.click(fn=pipeline,
-                  inputs=[
-                      label,
-                      neg_label,
-                      num_images,
-                      seed,
-                      image_height,
-                      image_width,
-                      num_steps,
-                      guidance,
-                      timeshift,
-                      order
-                  ], outputs=[output_sample, output_trajs])
-    demo.launch(server_name="0.0.0.0", server_port=23231)
-    # demo.launch(share=True, server_name="0.0.0.0", server_port=23231)
+        run_button.click(
+            fn=generate,
+            inputs=[class_label, batch_size, seed, steps, guidance, height, width],
+            outputs=[gallery],
+        )
+
+    demo.launch(server_name=args.server_name, server_port=args.server_port)
+
+
+if __name__ == "__main__":
+    main()
