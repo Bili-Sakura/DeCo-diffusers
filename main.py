@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 
@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     sample_source.add_argument("--legacy-ckpt-path", type=str)
     sample_parser.add_argument("--conditioning-type", type=str, default="class", choices=["class", "text"])
     sample_parser.add_argument("--num-classes", type=int, default=1000)
+    sample_parser.add_argument("--in-channels", type=int, default=3)
     sample_parser.add_argument("--class-label", type=int, default=0)
     sample_parser.add_argument("--batch-size", type=int, default=1)
     sample_parser.add_argument("--height", type=int, default=256)
@@ -70,12 +71,13 @@ def _build_pipeline_from_legacy_ckpt(
     ckpt_path: str,
     conditioning_type: str,
     num_classes: int,
+    in_channels: int,
 ) -> DeCoPipeline:
     transformer = load_transformer_from_legacy_lightning_checkpoint(
         ckpt_path,
         conditioning_type=conditioning_type,
         num_classes=num_classes,
-        in_channels=3,
+        in_channels=in_channels,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
     vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
@@ -90,6 +92,7 @@ def _sample(args: argparse.Namespace):
             ckpt_path=args.legacy_ckpt_path,
             conditioning_type=args.conditioning_type,
             num_classes=args.num_classes,
+            in_channels=args.in_channels,
         )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -97,7 +100,7 @@ def _sample(args: argparse.Namespace):
 
     generator = torch.Generator(device=device).manual_seed(args.seed)
 
-    kwargs: dict[str, Optional[torch.Tensor]] = {
+    kwargs: dict[str, Any] = {
         "batch_size": args.batch_size,
         "height": args.height,
         "width": args.width,
@@ -141,8 +144,6 @@ def main():
         run_diffusers_train(args)
     elif args.command == "sample":
         _sample(args)
-    else:
-        raise ValueError(f"Unknown command: {args.command}")
 
 
 if __name__ == "__main__":

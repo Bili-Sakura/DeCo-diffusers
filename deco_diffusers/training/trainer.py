@@ -57,7 +57,15 @@ class DeCoTrainer:
             lr=config.learning_rate,
             weight_decay=config.weight_decay,
         )
-        self.grad_scaler = torch.amp.GradScaler("cuda", enabled=(config.mixed_precision == "fp16" and self.device.type == "cuda"))
+        self.grad_scaler = torch.amp.GradScaler("cuda", enabled=self._use_amp_scaler)
+
+    @property
+    def _use_amp_scaler(self) -> bool:
+        return self.config.mixed_precision == "fp16" and self.device.type == "cuda"
+
+    @property
+    def _use_autocast(self) -> bool:
+        return self._autocast_dtype is not None and self.device.type == "cuda"
 
     @property
     def _autocast_dtype(self) -> Optional[torch.dtype]:
@@ -114,7 +122,7 @@ class DeCoTrainer:
                 with torch.autocast(
                     device_type=self.device.type,
                     dtype=self._autocast_dtype,
-                    enabled=(self._autocast_dtype is not None and self.device.type == "cuda"),
+                    enabled=self._use_autocast,
                 ):
                     loss = self._compute_loss(pixel_values=pixel_values, class_labels=class_labels)
                     scaled_loss = loss / self.config.gradient_accumulation_steps

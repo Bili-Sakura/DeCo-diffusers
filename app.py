@@ -14,12 +14,15 @@ from deco_diffusers import (
 )
 
 
-def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int) -> DeCoPipeline:
+def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DeCoPipeline:
     if pretrained_model_path is not None:
         return DeCoPipeline.from_pretrained(pretrained_model_path)
 
     if legacy_ckpt_path is None:
         raise ValueError("Either --pretrained-model-path or --legacy-ckpt-path must be provided")
+
+    if num_classes is None:
+        num_classes = 1000
 
     transformer = load_transformer_from_legacy_lightning_checkpoint(
         legacy_ckpt_path,
