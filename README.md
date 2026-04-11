@@ -95,8 +95,8 @@ HF spaces: [https://14467288703cf06a3c.gradio.live](https://14467288703cf06a3c.g
 
 To host the local gradio demo, run the following command:
 ```bash
-# for text-to-image applications
-python app.py --config ./configs_t2i/sft_res512.yaml --ckpt_path=./ckpts/t2i_DeCo.ckpt
+# class-to-image demo from legacy checkpoint
+python app.py --legacy-ckpt-path ./ckpts/imagenet256_epoch800.ckpt --num-classes 1000
 ```
 
 ## 🤖 Usages
@@ -135,35 +135,31 @@ pip install -r requirements.txt
 
 + Inference
 ```bash
-# for inference
-python main.py predict -c ./configs_c2i/DeCo_XL.yaml --ckpt_path=XXX.ckpt
+# sample from a legacy lightning checkpoint
+python main.py sample \
+  --legacy-ckpt-path /path/to/model.ckpt \
+  --conditioning-type class \
+  --class-label 207 \
+  --batch-size 4 \
+  --height 256 \
+  --width 256 \
+  --output-dir ./outputs
 ```
 
 + Train
 ```bash
-# for c2i training
-# Please modify the ImageNet1k path in the config file before training.
-python main.py fit -c ./configs_c2i/DeCo_XL.yaml
-
-# for 512*512 continuing pretraining
-python main.py fit -c ./configs_c2i/DeCo_XL_512.yaml --ckpt_path=/path/to/256/checkpoint/at/320/epochs
-```
-
-```bash
-# multi-node training in lightning style, e.g., 4 nodes
-export MASTER_ADDR={Your Config}
-export MASTER_PORT={Your Config}
-export NODE_RANK={Your Config}
-export NNODES={Your Config}
-export NGPUS_PER_NODE={Your Config}
-python main.py fit -c ./configs_c2i/DeCo_XL.yaml --trainer.num_nodes=4
-```
-
-```bash
-# for t2i training
-python main.py fit -c ./configs_t2i/pretraining_res256.yaml
-python main.py fit -c ./configs_t2i/pretraining_res512.yaml --ckpt_path=./ckpts/pretrain256.ckpt
-python main.py fit -c ./configs_t2i/sft_res512.yaml  --ckpt_path=./ckpts/pretrain512.ckpt
+# class-conditioned training with ImageFolder layout:
+# train_data_dir/
+#   class_0/*.png
+#   class_1/*.png
+python main.py train \
+  --train-data-dir /path/to/train_data_dir \
+  --output-dir ./workdirs/deco_diffusers \
+  --conditioning-type class \
+  --num-classes 1000 \
+  --resolution 256 \
+  --batch-size 8 \
+  --max-train-steps 100000
 ```
 
 ## 💐 Acknowledgement 
