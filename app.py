@@ -9,7 +9,7 @@ from diffusers import DiffusionPipeline
 
 from deco_diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
+    DeCoClassPipeline,
     load_transformer_from_legacy_lightning_checkpoint,
 )
 
@@ -20,7 +20,7 @@ def _resolve_custom_pipeline_path(model_path: str) -> str:
     if bundled_pipeline.exists():
         return str(bundled_pipeline)
     repo_root = Path(__file__).resolve().parent
-    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco.py")
+    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_class.py")
 
 
 def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DiffusionPipeline:
@@ -41,7 +41,7 @@ def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | No
         in_channels=3,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    return DeCoPipeline(transformer=transformer, scheduler=scheduler)
+    return DeCoClassPipeline(transformer=transformer, scheduler=scheduler)
 
 
 def main():

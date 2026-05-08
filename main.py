@@ -9,7 +9,8 @@ from diffusers import DiffusionPipeline
 
 from deco_diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
+    DeCoClassPipeline,
+    DeCoTextPipeline,
     DeCoTransformer2DModel,
     load_transformer_from_legacy_lightning_checkpoint,
 )
@@ -46,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--mixed-precision", type=str, choices=["no", "fp16", "bf16"], default="no")
     train_parser.add_argument("--seed", type=int, default=42)
 
-    sample_parser = subparsers.add_parser("sample", help="Generate images with DeCoPipeline")
+    sample_parser = subparsers.add_parser("sample", help="Generate images with DeCo pipelines")
     sample_source = sample_parser.add_mutually_exclusive_group(required=True)
     sample_source.add_argument("--pretrained-model-path", type=str)
     sample_source.add_argument("--legacy-ckpt-path", type=str)
@@ -67,13 +68,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_custom_pipeline_path(model_path: str) -> str:
+def _resolve_custom_pipeline_path(model_path: str, conditioning_type: str) -> str:
     local_model_path = Path(model_path)
     bundled_pipeline = local_model_path / "pipeline.py"
     if bundled_pipeline.exists():
         return str(bundled_pipeline)
     repo_root = Path(__file__).resolve().parent
-    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco.py")
+    if conditioning_type == "class":
+        return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_class.py")
+    if conditioning_type == "text":
+        return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_text.py")
+    raise ValueError("conditioning_type must be one of {'class', 'text'}")
 
 
 def _build_pipeline_from_legacy_ckpt(
@@ -81,7 +86,7 @@ def _build_pipeline_from_legacy_ckpt(
     conditioning_type: str,
     num_classes: int,
     in_channels: int,
-) -> DeCoPipeline:
+) -> DiffusionPipeline:
     transformer = load_transformer_from_legacy_lightning_checkpoint(
         ckpt_path,
         conditioning_type=conditioning_type,
@@ -89,12 +94,13 @@ def _build_pipeline_from_legacy_ckpt(
         in_channels=in_channels,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    return DeCoPipeline(transformer=transformer, scheduler=scheduler)
+    pipeline_cls = DeCoClassPipeline if conditioning_type == "class" else DeCoTextPipeline
+    return pipeline_cls(transformer=transformer, scheduler=scheduler)
 
 
 def _sample(args: argparse.Namespace):
     if args.pretrained_model_path is not None:
-        custom_pipeline = _resolve_custom_pipeline_path(args.pretrained_model_path)
+        custom_pipeline = _resolve_custom_pipeline_path(args.pretrained_model_path, args.conditioning_type)
         pipe = DiffusionPipeline.from_pretrained(args.pretrained_model_path, custom_pipeline=custom_pipeline)
     else:
         pipe = _build_pipeline_from_legacy_ckpt(

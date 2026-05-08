@@ -108,14 +108,19 @@ In text-to-image experiments, we use BLIP3o dataset as training set and utilize 
 from deco_diffusers import (
     DeCoTransformer2DModel,
     DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
+    DeCoClassPipeline,
+    DeCoTextPipeline,
     load_transformer_from_legacy_lightning_checkpoint,
 )
 
 # Build directly from config-like kwargs
 transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
 scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler)
+class_pipe = DeCoClassPipeline(transformer=transformer, scheduler=scheduler)
+
+# Text-conditioned pipeline uses prompt embeddings as inputs
+text_transformer = DeCoTransformer2DModel(conditioning_type="text")
+text_pipe = DeCoTextPipeline(transformer=text_transformer, scheduler=scheduler)
 
 # Or load transformer weights from existing Lightning checkpoints
 transformer = load_transformer_from_legacy_lightning_checkpoint(
@@ -133,6 +138,21 @@ python scripts/sample_deco.py \
   --class-label 207 \
   --num-inference-steps 50 \
   --guidance-scale 4.0
+
+# text-conditioned sampling (prompt embeds required)
+python scripts/sample_deco.py \
+  --model /path/to/deco_diffusers_text_checkpoint \
+  --prompt-embeds-path /path/to/prompt_embeds.pt \
+  --num-inference-steps 50
+```
+
++ Convert legacy checkpoints to diffusers style
+```bash
+python scripts/convert_deco_ckpt.py \
+  --checkpoint /path/to/legacy.ckpt \
+  --conditioning-type class \
+  --num-classes 1000 \
+  --output-dir /path/to/deco_diffusers_checkpoint
 ```
 
 + Environments

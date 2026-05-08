@@ -11,7 +11,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
 from deco_diffusers.models import DeCoTransformer2DModel
-from deco_diffusers.pipelines import DeCoPipeline
+from deco_diffusers.pipelines import DeCoClassPipeline
 from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
 
@@ -91,7 +91,7 @@ class DeCoTrainer:
 
     def _save_pipeline(self, output_dir: Path, step: int):
         save_dir = output_dir / f"checkpoint-{step}"
-        pipe = DeCoPipeline(transformer=self.transformer, scheduler=self.scheduler)
+        pipe = DeCoClassPipeline(transformer=self.transformer, scheduler=self.scheduler)
         pipe.save_pretrained(save_dir)
 
     def train(self, dataloader: DataLoader):

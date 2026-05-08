@@ -10,13 +10,17 @@ import torch
 from diffusers import DiffusionPipeline
 
 
-def resolve_custom_pipeline_path(model_path: str) -> str:
+def resolve_custom_pipeline_path(model_path: str, pipeline_kind: str) -> str:
     local_model_path = Path(model_path)
     bundled_pipeline = local_model_path / "pipeline.py"
     if bundled_pipeline.exists():
         return str(bundled_pipeline)
     repo_root = Path(__file__).resolve().parents[1]
-    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco.py")
+    if pipeline_kind == "class":
+        return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_class.py")
+    if pipeline_kind == "text":
+        return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_text.py")
+    raise ValueError("pipeline_kind must be one of {'class', 'text'}")
 
 
 def load_prompt_embeds(path: str, device: str, dtype: torch.dtype) -> torch.Tensor:
@@ -63,7 +67,14 @@ def main() -> None:
     if device.startswith("cuda") and not torch.cuda.is_available():
         print("CUDA is unavailable; falling back to CPU.", file=sys.stderr)
         device = "cpu"
-    custom_pipeline = resolve_custom_pipeline_path(args.model)
+    if args.class_label is not None:
+        pipeline_kind = "class"
+    elif args.prompt_embeds_path is not None:
+        pipeline_kind = "text"
+    else:
+        raise ValueError("Provide either --class-label or --prompt-embeds-path for sampling.")
+
+    custom_pipeline = resolve_custom_pipeline_path(args.model, pipeline_kind)
     pipe = DiffusionPipeline.from_pretrained(
         args.model,
         custom_pipeline=custom_pipeline,
@@ -83,20 +94,18 @@ def main() -> None:
         "output_type": "pil",
     }
 
-    if args.class_label is not None:
+    if pipeline_kind == "class":
         class_labels = torch.tensor(args.class_label, device=device, dtype=torch.long)
         kwargs["class_labels"] = class_labels
         if args.batch_size is not None:
             kwargs["batch_size"] = args.batch_size
-    elif args.prompt_embeds_path is not None:
+    else:
         prompt_embeds = load_prompt_embeds(args.prompt_embeds_path, device, dtype)
         kwargs["prompt_embeds"] = prompt_embeds
         if args.negative_prompt_embeds_path is not None:
             kwargs["negative_prompt_embeds"] = load_prompt_embeds(args.negative_prompt_embeds_path, device, dtype)
         if args.batch_size is not None:
             kwargs["batch_size"] = args.batch_size
-    else:
-        raise ValueError("Provide either --class-label or --prompt-embeds-path for sampling.")
 
     output = pipe(**kwargs).images
 
