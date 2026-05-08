@@ -37,7 +37,9 @@ class DeCoPipeline(DiffusionPipeline):
     @staticmethod
     def _to_list(value: ConditioningInput) -> list[int]:
         if isinstance(value, torch.Tensor):
-            raise TypeError("Tensor inputs should be passed directly via class_labels/prompt parameters.")
+            raise TypeError(
+                "Tensor inputs should be passed directly via class_labels (class conditioning) or prompt_embeds (text conditioning)."
+            )
         if isinstance(value, str):
             raise TypeError("String prompts are not supported for class label inputs.")
         if isinstance(value, (int, np.integer)):
@@ -52,7 +54,7 @@ class DeCoPipeline(DiffusionPipeline):
             return resolved
         if batch_size != resolved:
             if resolved != 1:
-                raise ValueError("Resolved batch size does not match provided batch_size.")
+                raise ValueError(f"Resolved batch size {resolved} does not match provided batch_size {batch_size}.")
         return batch_size
 
     def _prepare_class_labels(
@@ -126,7 +128,10 @@ class DeCoPipeline(DiffusionPipeline):
         latents = latents.to(device=device, dtype=dtype)
         expected_shape = (batch_size, num_channels, height, width)
         if latents.shape != expected_shape:
-            raise ValueError(f"Provided latents have shape {tuple(latents.shape)}, expected {expected_shape}.")
+            raise ValueError(
+                f"Provided latents have shape {tuple(latents.shape)}; expected {expected_shape} "
+                "(batch_size, num_channels, height, width)."
+            )
         return latents
 
     @torch.no_grad()
@@ -227,8 +232,7 @@ class DeCoPipeline(DiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
-        # The scheduler includes a final endpoint timestep that represents the fully denoised state.
-        # Exclude it so the loop runs only the actual sampling steps.
+        # Build sampling_timesteps by dropping the final endpoint that represents the fully denoised state.
         sampling_timesteps = timesteps[:-1]
 
         for step_index, timestep in enumerate(self.progress_bar(sampling_timesteps)):
