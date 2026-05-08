@@ -10,7 +10,7 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from deco_diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
+from deco_diffusers.models import DeCoTransformer2DModel
 from deco_diffusers.pipelines import DeCoPipeline
 from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
@@ -34,12 +34,10 @@ class DeCoTrainer:
         self,
         transformer: DeCoTransformer2DModel,
         scheduler: DeCoFlowMatchEulerDiscreteScheduler,
-        vae: Optional[DeCoPixelAutoencoder],
         config: DeCoTrainConfig,
     ):
         self.transformer = transformer
         self.scheduler = scheduler
-        self.vae = vae
         self.config = config
 
         torch.manual_seed(config.seed)
@@ -48,9 +46,6 @@ class DeCoTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.transformer.to(self.device)
-        if self.vae is not None:
-            self.vae.to(self.device)
-            self.vae.eval()
 
         self.optimizer = AdamW(
             self.transformer.parameters(),
@@ -77,11 +72,7 @@ class DeCoTrainer:
 
     def _compute_loss(self, pixel_values: torch.Tensor, class_labels: Optional[torch.Tensor]) -> torch.Tensor:
         pixel_values = pixel_values.to(self.device)
-        if self.vae is not None:
-            with torch.no_grad():
-                latents = self.vae.encode(pixel_values).sample
-        else:
-            latents = pixel_values
+        latents = pixel_values
 
         noise = torch.randn_like(latents)
         timesteps = torch.rand((latents.shape[0],), device=self.device, dtype=latents.dtype)
@@ -100,7 +91,7 @@ class DeCoTrainer:
 
     def _save_pipeline(self, output_dir: Path, step: int):
         save_dir = output_dir / f"checkpoint-{step}"
-        pipe = DeCoPipeline(transformer=self.transformer, scheduler=self.scheduler, vae=self.vae)
+        pipe = DeCoPipeline(transformer=self.transformer, scheduler=self.scheduler)
         pipe.save_pretrained(save_dir)
 
     def train(self, dataloader: DataLoader):

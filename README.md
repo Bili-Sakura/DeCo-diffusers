@@ -107,7 +107,6 @@ In text-to-image experiments, we use BLIP3o dataset as training set and utilize 
 ```python
 from deco_diffusers import (
     DeCoTransformer2DModel,
-    DeCoPixelAutoencoder,
     DeCoFlowMatchEulerDiscreteScheduler,
     DeCoPipeline,
     load_transformer_from_legacy_lightning_checkpoint,
@@ -116,8 +115,7 @@ from deco_diffusers import (
 # Build directly from config-like kwargs
 transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
 scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler)
 
 # Or load transformer weights from existing Lightning checkpoints
 transformer = load_transformer_from_legacy_lightning_checkpoint(

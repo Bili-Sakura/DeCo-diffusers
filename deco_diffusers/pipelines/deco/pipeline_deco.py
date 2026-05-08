@@ -6,11 +6,9 @@ import numpy as np
 import torch
 
 from diffusers import DiffusionPipeline
-from diffusers.image_processor import VaeImageProcessor
 from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
 from diffusers.utils.torch_utils import randn_tensor
 
-from deco_diffusers.models.autoencoder import DeCoPixelAutoencoder
 from deco_diffusers.models.transformer_deco import DeCoTransformer2DModel
 from deco_diffusers.schedulers.scheduling_deco_flow_match_euler_discrete import DeCoFlowMatchEulerDiscreteScheduler
 
@@ -26,13 +24,9 @@ class DeCoPipeline(DiffusionPipeline):
         self,
         transformer: DeCoTransformer2DModel,
         scheduler: DeCoFlowMatchEulerDiscreteScheduler,
-        vae: Optional[DeCoPixelAutoencoder] = None,
     ):
         super().__init__()
-        if vae is None:
-            vae = getattr(transformer, "vae", None)
-        self.register_modules(transformer=transformer, scheduler=scheduler, vae=vae)
-        self.image_processor = VaeImageProcessor(vae_scale_factor=1)
+        self.register_modules(transformer=transformer, scheduler=scheduler)
 
     @staticmethod
     def _to_list(value: ConditioningInput) -> list[int]:
@@ -267,13 +261,6 @@ class DeCoPipeline(DiffusionPipeline):
                 callback(step_index, timestep, latents)
 
         image = latents
-        if self.vae is not None:
-            image = self.vae.decode(image).sample
-        elif output_type != "latent":
-            raise ValueError(
-                f"Cannot produce output_type '{output_type}' without a VAE. Provide a VAE or set output_type='latent'."
-            )
-
         if output_type == "latent":
             if not return_dict:
                 return (image,)

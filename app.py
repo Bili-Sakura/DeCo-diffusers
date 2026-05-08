@@ -10,7 +10,6 @@ from diffusers import DiffusionPipeline
 from deco_diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
     DeCoPipeline,
-    DeCoPixelAutoencoder,
     load_transformer_from_legacy_lightning_checkpoint,
 )
 
@@ -42,8 +41,7 @@ def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | No
         in_channels=3,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-    return DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+    return DeCoPipeline(transformer=transformer, scheduler=scheduler)
 
 
 def main():
