@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import torch
@@ -60,6 +61,7 @@ def main() -> None:
 
     device = args.device
     if device.startswith("cuda") and not torch.cuda.is_available():
+        print("CUDA is unavailable; falling back to CPU.", file=sys.stderr)
         device = "cpu"
     custom_pipeline = resolve_custom_pipeline_path(args.model)
     pipe = DiffusionPipeline.from_pretrained(

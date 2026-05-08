@@ -151,7 +151,7 @@ class DeCoPipeline(DiffusionPipeline):
     ):
         device = self._execution_device
         dtype = next(self.transformer.parameters()).dtype
-        if callback is not None and callback_steps <= 0:
+        if callback_steps <= 0:
             raise ValueError("callback_steps must be > 0")
 
         conditioning_type = self.transformer.config.conditioning_type
@@ -227,8 +227,10 @@ class DeCoPipeline(DiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
+        # The scheduler exposes an extra endpoint timestep; exclude it for sampling steps.
+        sampling_timesteps = timesteps[:-1]
 
-        for step_index, timestep in enumerate(self.progress_bar(timesteps[:-1])):
+        for step_index, timestep in enumerate(self.progress_bar(sampling_timesteps)):
             latent_model_input = self.scheduler.scale_model_input(latents, timestep)
 
             if do_cfg:
