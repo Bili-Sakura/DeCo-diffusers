@@ -132,7 +132,7 @@ class DeCoPipeline(DiffusionPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        batch_size: Optional[int] = 1,
+        batch_size: Optional[int] = None,
         height: int = 256,
         width: int = 256,
         num_inference_steps: int = 50,
@@ -151,7 +151,7 @@ class DeCoPipeline(DiffusionPipeline):
     ):
         device = self._execution_device
         dtype = next(self.transformer.parameters()).dtype
-        if callback_steps <= 0:
+        if callback is not None and callback_steps <= 0:
             raise ValueError("callback_steps must be > 0")
 
         conditioning_type = self.transformer.config.conditioning_type
@@ -227,7 +227,8 @@ class DeCoPipeline(DiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
-        # The scheduler exposes an extra endpoint timestep; exclude it for sampling steps.
+        # The scheduler includes a final endpoint timestep that represents the fully denoised state.
+        # Exclude it so the loop runs only the actual sampling steps.
         sampling_timesteps = timesteps[:-1]
 
         for step_index, timestep in enumerate(self.progress_bar(sampling_timesteps)):
