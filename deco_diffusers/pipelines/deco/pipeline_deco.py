@@ -37,7 +37,7 @@ class DeCoPipeline(DiffusionPipeline):
     @staticmethod
     def _to_list(value: ConditioningInput) -> list[int]:
         if isinstance(value, torch.Tensor):
-            raise TypeError("Use tensor inputs directly without list conversion.")
+            raise TypeError("Tensor inputs should be passed directly via class_labels/prompt parameters.")
         if isinstance(value, str):
             raise TypeError("String prompts are not supported for class label inputs.")
         if isinstance(value, (int, np.integer)):
@@ -132,13 +132,13 @@ class DeCoPipeline(DiffusionPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        prompt: Optional[ConditioningInput] = None,
-        batch_size: Optional[int] = None,
+        batch_size: Optional[int] = 1,
         height: int = 256,
         width: int = 256,
         num_inference_steps: int = 50,
         guidance_scale: float = 1.0,
         class_labels: Optional[torch.Tensor] = None,
+        prompt: Optional[ConditioningInput] = None,
         negative_prompt: Optional[ConditioningInput] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
         negative_prompt_embeds: Optional[torch.Tensor] = None,
@@ -224,7 +224,7 @@ class DeCoPipeline(DiffusionPipeline):
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
 
-        if callback_steps <= 0:
+        if callback is not None and callback_steps <= 0:
             raise ValueError("callback_steps must be > 0")
 
         for step_index, timestep in enumerate(self.progress_bar(timesteps[:-1])):

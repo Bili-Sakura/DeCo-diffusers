@@ -28,7 +28,13 @@ def load_prompt_embeds(path: str, device: str, dtype: torch.dtype) -> torch.Tens
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sample images with the DeCo Diffusers pipeline.")
     parser.add_argument("--model", required=True, help="Path or Hub id of a Diffusers-style DeCo pipeline.")
-    parser.add_argument("--class-label", type=int, action="append", default=None, help="Class id. Repeat for batches.")
+    parser.add_argument(
+        "--class-label",
+        type=int,
+        action="append",
+        default=None,
+        help="Class id. Repeat the flag (e.g. --class-label 1 --class-label 2) to build a batch.",
+    )
     parser.add_argument("--prompt-embeds-path", type=str, default=None, help="Path to a torch.Tensor of prompt embeds.")
     parser.add_argument(
         "--negative-prompt-embeds-path",
