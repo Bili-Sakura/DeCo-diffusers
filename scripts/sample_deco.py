@@ -61,16 +61,16 @@ def main() -> None:
     device = args.device
     if device.startswith("cuda") and not torch.cuda.is_available():
         device = "cpu"
-    generator = torch.Generator(device=device)
-    if args.seed is not None:
-        generator.manual_seed(args.seed)
-
     custom_pipeline = resolve_custom_pipeline_path(args.model)
     pipe = DiffusionPipeline.from_pretrained(
         args.model,
         custom_pipeline=custom_pipeline,
         torch_dtype=dtype,
     ).to(device)
+
+    generator = torch.Generator(device=device)
+    if args.seed is not None:
+        generator.manual_seed(args.seed)
 
     kwargs: dict[str, object] = {
         "height": args.height,

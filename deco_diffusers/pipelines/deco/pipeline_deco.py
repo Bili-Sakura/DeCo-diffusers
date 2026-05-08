@@ -151,6 +151,8 @@ class DeCoPipeline(DiffusionPipeline):
     ):
         device = self._execution_device
         dtype = next(self.transformer.parameters()).dtype
+        if callback is not None and callback_steps <= 0:
+            raise ValueError("callback_steps must be > 0")
 
         conditioning_type = self.transformer.config.conditioning_type
         do_cfg = guidance_scale is not None and float(guidance_scale) > 1.0
@@ -205,7 +207,9 @@ class DeCoPipeline(DiffusionPipeline):
                         raise ValueError("negative_prompt_embeds batch size must match batch_size")
 
         if not hasattr(self.transformer.config, "patch_size"):
-            raise ValueError("Transformer config is missing patch_size.")
+            raise ValueError(
+                "Transformer config is missing required attribute patch_size. Ensure the transformer config is valid."
+            )
         patch_size = int(self.transformer.config.patch_size)
         if height % patch_size != 0 or width % patch_size != 0:
             raise ValueError("height and width must be divisible by the transformer patch size")
@@ -223,9 +227,6 @@ class DeCoPipeline(DiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
-
-        if callback is not None and callback_steps <= 0:
-            raise ValueError("callback_steps must be > 0")
 
         for step_index, timestep in enumerate(self.progress_bar(timesteps[:-1])):
             latent_model_input = self.scheduler.scale_model_input(latents, timestep)
