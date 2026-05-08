@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import torch
+from diffusers import DiffusionPipeline
 
 from deco_diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
@@ -67,6 +68,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_custom_pipeline_path(model_path: str) -> str:
+    local_model_path = Path(model_path)
+    bundled_pipeline = local_model_path / "pipeline.py"
+    if bundled_pipeline.exists():
+        return str(bundled_pipeline)
+    repo_root = Path(__file__).resolve().parent
+    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco.py")
+
+
 def _build_pipeline_from_legacy_ckpt(
     ckpt_path: str,
     conditioning_type: str,
@@ -86,7 +96,8 @@ def _build_pipeline_from_legacy_ckpt(
 
 def _sample(args: argparse.Namespace):
     if args.pretrained_model_path is not None:
-        pipe = DeCoPipeline.from_pretrained(args.pretrained_model_path)
+        custom_pipeline = _resolve_custom_pipeline_path(args.pretrained_model_path)
+        pipe = DiffusionPipeline.from_pretrained(args.pretrained_model_path, custom_pipeline=custom_pipeline)
     else:
         pipe = _build_pipeline_from_legacy_ckpt(
             ckpt_path=args.legacy_ckpt_path,

@@ -127,6 +127,16 @@ transformer = load_transformer_from_legacy_lightning_checkpoint(
 )
 ```
 
++ Diffusers-first inference (custom pipeline fallback)
+```bash
+# load a diffusers-style checkpoint (uses pipeline.py if present)
+python scripts/sample_deco.py \
+  --model /path/to/deco_diffusers_checkpoint \
+  --class-label 207 \
+  --num-inference-steps 50 \
+  --guidance-scale 4.0
+```
+
 + Environments
 ```bash
 # for installation (recommend python 3.10)
@@ -135,6 +145,16 @@ pip install -r requirements.txt
 
 + Inference
 ```bash
+# sample from a diffusers-style checkpoint
+python main.py sample \
+  --pretrained-model-path /path/to/deco_diffusers_checkpoint \
+  --conditioning-type class \
+  --class-label 207 \
+  --batch-size 4 \
+  --height 256 \
+  --width 256 \
+  --output-dir ./outputs
+
 # sample from a legacy lightning checkpoint
 python main.py sample \
   --legacy-ckpt-path /path/to/model.ckpt \
