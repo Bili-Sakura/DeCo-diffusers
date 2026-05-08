@@ -39,7 +39,7 @@ class DeCoPipeline(DiffusionPipeline):
         if isinstance(value, torch.Tensor):
             raise TypeError("Use tensor inputs directly without list conversion.")
         if isinstance(value, str):
-            raise TypeError("String prompts are not supported for class-conditioned DeCo models.")
+            raise TypeError("String prompts are not supported for class label inputs.")
         if isinstance(value, (int, np.integer)):
             return [int(value)]
         if isinstance(value, Iterable):
@@ -124,8 +124,9 @@ class DeCoPipeline(DiffusionPipeline):
                 dtype=dtype,
             )
         latents = latents.to(device=device, dtype=dtype)
-        if latents.shape != (batch_size, num_channels, height, width):
-            raise ValueError("Provided latents do not match the expected shape.")
+        expected_shape = (batch_size, num_channels, height, width)
+        if latents.shape != expected_shape:
+            raise ValueError(f"Provided latents have shape {tuple(latents.shape)}, expected {expected_shape}.")
         return latents
 
     @torch.no_grad()
@@ -203,7 +204,9 @@ class DeCoPipeline(DiffusionPipeline):
                     else:
                         raise ValueError("negative_prompt_embeds batch size must match batch_size")
 
-        patch_size = int(getattr(self.transformer.config, "patch_size", 1))
+        if not hasattr(self.transformer.config, "patch_size"):
+            raise ValueError("Transformer config is missing patch_size.")
+        patch_size = int(self.transformer.config.patch_size)
         if height % patch_size != 0 or width % patch_size != 0:
             raise ValueError("height and width must be divisible by the transformer patch size")
 

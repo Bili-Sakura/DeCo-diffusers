@@ -55,8 +55,7 @@ def main() -> None:
     device = args.device
     if device.startswith("cuda") and not torch.cuda.is_available():
         device = "cpu"
-    generator_device = device if device != "cpu" and torch.cuda.is_available() else "cpu"
-    generator = torch.Generator(device=generator_device)
+    generator = torch.Generator(device=device)
     if args.seed is not None:
         generator.manual_seed(args.seed)
 
