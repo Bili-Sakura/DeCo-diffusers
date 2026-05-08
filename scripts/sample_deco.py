@@ -52,7 +52,10 @@ def main() -> None:
     args = parse_args()
     dtype = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}[args.torch_dtype]
 
-    generator_device = args.device if args.device != "cpu" and torch.cuda.is_available() else "cpu"
+    device = args.device
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        device = "cpu"
+    generator_device = device if device != "cpu" and torch.cuda.is_available() else "cpu"
     generator = torch.Generator(device=generator_device)
     if args.seed is not None:
         generator.manual_seed(args.seed)
@@ -62,7 +65,7 @@ def main() -> None:
         args.model,
         custom_pipeline=custom_pipeline,
         torch_dtype=dtype,
-    ).to(args.device)
+    ).to(device)
 
     kwargs: dict[str, object] = {
         "height": args.height,
@@ -74,15 +77,15 @@ def main() -> None:
     }
 
     if args.class_label is not None:
-        class_labels = torch.tensor(args.class_label, device=args.device, dtype=torch.long)
+        class_labels = torch.tensor(args.class_label, device=device, dtype=torch.long)
         kwargs["class_labels"] = class_labels
         if args.batch_size is not None:
             kwargs["batch_size"] = args.batch_size
     elif args.prompt_embeds_path is not None:
-        prompt_embeds = load_prompt_embeds(args.prompt_embeds_path, args.device, dtype)
+        prompt_embeds = load_prompt_embeds(args.prompt_embeds_path, device, dtype)
         kwargs["prompt_embeds"] = prompt_embeds
         if args.negative_prompt_embeds_path is not None:
-            kwargs["negative_prompt_embeds"] = load_prompt_embeds(args.negative_prompt_embeds_path, args.device, dtype)
+            kwargs["negative_prompt_embeds"] = load_prompt_embeds(args.negative_prompt_embeds_path, device, dtype)
         if args.batch_size is not None:
             kwargs["batch_size"] = args.batch_size
     else:

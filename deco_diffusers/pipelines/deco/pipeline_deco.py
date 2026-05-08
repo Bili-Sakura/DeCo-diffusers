@@ -19,7 +19,7 @@ ConditioningInput = Union[int, Sequence[int], torch.Tensor]
 
 
 class DeCoPipeline(DiffusionPipeline):
-    model_cpu_offload_seq = "transformer->vae"
+    model_cpu_offload_seq = "transformer"
     _callback_tensor_inputs = ["latents"]
 
     def __init__(
@@ -259,7 +259,9 @@ class DeCoPipeline(DiffusionPipeline):
         if self.vae is not None:
             image = self.vae.decode(image).sample
         elif output_type != "latent":
-            raise ValueError("output_type is not 'latent' but no VAE is available to decode latents.")
+            raise ValueError(
+                f"Cannot produce output_type '{output_type}' without a VAE. Provide a VAE or set output_type='latent'."
+            )
 
         if output_type == "latent":
             if not return_dict:
