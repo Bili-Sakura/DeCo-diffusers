@@ -5,7 +5,7 @@ import argparse
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from deco_diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
+from deco_diffusers.models import DeCoTransformer2DModel
 from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 from deco_diffusers.training import DeCoTrainConfig, DeCoTrainer
 
@@ -78,7 +78,6 @@ def run_train_from_args(args: argparse.Namespace):
         num_classes=args.num_classes,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
 
     train_config = DeCoTrainConfig(
         output_dir=args.output_dir,
@@ -93,7 +92,7 @@ def run_train_from_args(args: argparse.Namespace):
         seed=args.seed,
     )
 
-    trainer = DeCoTrainer(transformer=transformer, scheduler=scheduler, vae=vae, config=train_config)
+    trainer = DeCoTrainer(transformer=transformer, scheduler=scheduler, config=train_config)
     trainer.train(dataloader)
 
 

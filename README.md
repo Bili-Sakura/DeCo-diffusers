@@ -107,17 +107,20 @@ In text-to-image experiments, we use BLIP3o dataset as training set and utilize 
 ```python
 from deco_diffusers import (
     DeCoTransformer2DModel,
-    DeCoPixelAutoencoder,
     DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
+    DeCoClassPipeline,
+    DeCoTextPipeline,
     load_transformer_from_legacy_lightning_checkpoint,
 )
 
 # Build directly from config-like kwargs
 transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
 scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+class_pipe = DeCoClassPipeline(transformer=transformer, scheduler=scheduler)
+
+# Text-conditioned pipeline uses prompt embeddings as inputs
+text_transformer = DeCoTransformer2DModel(conditioning_type="text")
+text_pipe = DeCoTextPipeline(transformer=text_transformer, scheduler=scheduler)
 
 # Or load transformer weights from existing Lightning checkpoints
 transformer = load_transformer_from_legacy_lightning_checkpoint(
@@ -125,6 +128,31 @@ transformer = load_transformer_from_legacy_lightning_checkpoint(
     conditioning_type="class",
     use_ema=True,
 )
+```
+
++ Diffusers-first inference (custom pipeline fallback)
+```bash
+# load a diffusers-style checkpoint (uses pipeline.py if present)
+python scripts/sample_deco.py \
+  --model /path/to/deco_diffusers_checkpoint \
+  --class-label 207 \
+  --num-inference-steps 50 \
+  --guidance-scale 4.0
+
+# text-conditioned sampling (prompt embeds required)
+python scripts/sample_deco.py \
+  --model /path/to/deco_diffusers_text_checkpoint \
+  --prompt-embeds-path /path/to/prompt_embeds.pt \
+  --num-inference-steps 50
+```
+
++ Convert legacy checkpoints to diffusers style
+```bash
+python scripts/convert_deco_ckpt.py \
+  --checkpoint /path/to/legacy.ckpt \
+  --conditioning-type class \
+  --num-classes 1000 \
+  --output-dir /path/to/deco_diffusers_checkpoint
 ```
 
 + Environments
@@ -135,6 +163,16 @@ pip install -r requirements.txt
 
 + Inference
 ```bash
+# sample from a diffusers-style checkpoint
+python main.py sample \
+  --pretrained-model-path /path/to/deco_diffusers_checkpoint \
+  --conditioning-type class \
+  --class-label 207 \
+  --batch-size 4 \
+  --height 256 \
+  --width 256 \
+  --output-dir ./outputs
+
 # sample from a legacy lightning checkpoint
 python main.py sample \
   --legacy-ckpt-path /path/to/model.ckpt \

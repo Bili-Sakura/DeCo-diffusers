@@ -1,0 +1,207 @@
+from __future__ import annotations
+
+from typing import Callable, Iterable, Optional, Sequence, Union
+
+import numpy as np
+import torch
+
+from diffusers import DiffusionPipeline
+from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
+from diffusers.utils.torch_utils import randn_tensor
+
+from deco_diffusers.models.transformer_deco import DeCoTransformer2DModel
+from deco_diffusers.schedulers.scheduling_deco_flow_match_euler_discrete import DeCoFlowMatchEulerDiscreteScheduler
+
+PIPELINE_CLASS = "DeCoClassPipeline"
+
+ConditioningInput = Union[int, Sequence[int], torch.Tensor]
+
+
+class DeCoClassPipeline(DiffusionPipeline):
+    model_cpu_offload_seq = "transformer"
+    _callback_tensor_inputs = ["latents"]
+
+    def __init__(self, transformer: DeCoTransformer2DModel, scheduler: DeCoFlowMatchEulerDiscreteScheduler):
+        super().__init__()
+        if transformer.config.conditioning_type != "class":
+            raise ValueError("DeCoClassPipeline requires a class-conditioned transformer.")
+        self.register_modules(transformer=transformer, scheduler=scheduler)
+
+    @staticmethod
+    def _to_list(value: ConditioningInput) -> list[int]:
+        if isinstance(value, torch.Tensor):
+            raise TypeError("Tensor inputs should be passed directly for class_labels.")
+        if isinstance(value, str):
+            raise TypeError("String prompts are not supported for class label inputs.")
+        if isinstance(value, (int, np.integer)):
+            return [int(value)]
+        if isinstance(value, Iterable):
+            return [int(entry) for entry in value]
+        raise TypeError("Unsupported class label input type.")
+
+    @staticmethod
+    def _resolve_batch_size(batch_size: Optional[int], resolved: int) -> int:
+        if batch_size is None:
+            return resolved
+        if batch_size != resolved:
+            if resolved != 1:
+                raise ValueError(f"Resolved batch size {resolved} does not match provided batch_size {batch_size}.")
+        return batch_size
+
+    def _normalize_class_labels(self, class_labels: ConditioningInput, device: torch.device) -> torch.Tensor:
+        if isinstance(class_labels, torch.Tensor):
+            labels = class_labels
+        else:
+            labels = torch.tensor(self._to_list(class_labels), dtype=torch.long)
+        labels = labels.to(device=device, dtype=torch.long)
+        if labels.ndim == 0:
+            labels = labels[None]
+        return labels
+
+    def _prepare_class_labels(
+        self,
+        class_labels: Optional[ConditioningInput],
+        batch_size: Optional[int],
+        device: torch.device,
+    ) -> tuple[torch.Tensor, int]:
+        if class_labels is None:
+            raise ValueError("class_labels must be provided for class-conditioned DeCo models")
+
+        class_labels = self._normalize_class_labels(class_labels, device)
+        batch_size = self._resolve_batch_size(batch_size, int(class_labels.shape[0]))
+        if class_labels.shape[0] != batch_size:
+            if class_labels.shape[0] == 1:
+                class_labels = class_labels.repeat(batch_size)
+            else:
+                raise ValueError("class_labels batch size must match batch_size")
+        return class_labels, batch_size
+
+    def prepare_latents(
+        self,
+        batch_size: int,
+        num_channels: int,
+        height: int,
+        width: int,
+        dtype: torch.dtype,
+        device: torch.device,
+        generator: Optional[Union[torch.Generator, list[torch.Generator]]] = None,
+        latents: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if latents is None:
+            return randn_tensor(
+                (batch_size, num_channels, height, width),
+                generator=generator,
+                device=device,
+                dtype=dtype,
+            )
+        latents = latents.to(device=device, dtype=dtype)
+        expected_shape = (batch_size, num_channels, height, width)
+        if latents.shape != expected_shape:
+            raise ValueError(
+                f"Provided latents have shape {tuple(latents.shape)}; expected {expected_shape} "
+                "(batch_size, num_channels, height, width)."
+            )
+        return latents
+
+    @torch.no_grad()
+    def __call__(
+        self,
+        batch_size: Optional[int] = None,
+        height: int = 256,
+        width: int = 256,
+        num_inference_steps: int = 50,
+        guidance_scale: float = 1.0,
+        class_labels: Optional[ConditioningInput] = None,
+        negative_class_labels: Optional[ConditioningInput] = None,
+        generator: Optional[Union[torch.Generator, list[torch.Generator]]] = None,
+        latents: Optional[torch.Tensor] = None,
+        output_type: str = "pil",
+        return_dict: bool = True,
+        callback: Optional[Callable[[int, torch.Tensor, torch.Tensor], None]] = None,
+        callback_steps: int = 1,
+    ):
+        device = self._execution_device
+        dtype = next(self.transformer.parameters()).dtype
+        if callback is not None and callback_steps <= 0:
+            raise ValueError("callback_steps must be > 0")
+
+        class_labels, batch_size = self._prepare_class_labels(
+            class_labels=class_labels,
+            batch_size=batch_size,
+            device=device,
+        )
+
+        do_cfg = guidance_scale is not None and float(guidance_scale) > 1.0
+        if do_cfg:
+            if negative_class_labels is not None:
+                uncond_labels = self._normalize_class_labels(negative_class_labels, device)
+                if uncond_labels.shape[0] != batch_size:
+                    if uncond_labels.shape[0] == 1:
+                        uncond_labels = uncond_labels.repeat(batch_size)
+                    else:
+                        raise ValueError("negative_class_labels batch size must match batch_size")
+            else:
+                null_label = int(self.transformer.config.num_classes)
+                uncond_labels = torch.full((batch_size,), null_label, device=device, dtype=torch.long)
+
+        if not hasattr(self.transformer.config, "patch_size"):
+            raise ValueError(
+                "Transformer config is missing required attribute patch_size. Ensure the transformer config is valid."
+            )
+        patch_size = int(self.transformer.config.patch_size)
+        if height % patch_size != 0 or width % patch_size != 0:
+            raise ValueError("height and width must be divisible by the transformer patch size")
+
+        latents = self.prepare_latents(
+            batch_size=batch_size,
+            num_channels=int(self.transformer.config.in_channels),
+            height=int(height),
+            width=int(width),
+            dtype=dtype,
+            device=device,
+            generator=generator,
+            latents=latents,
+        )
+
+        self.scheduler.set_timesteps(num_inference_steps, device=device)
+        timesteps = self.scheduler.timesteps
+        sampling_timesteps = timesteps[:-1]
+
+        for step_index, timestep in enumerate(self.progress_bar(sampling_timesteps)):
+            latent_model_input = self.scheduler.scale_model_input(latents, timestep)
+
+            if do_cfg:
+                latent_model_input = torch.cat([latent_model_input, latent_model_input], dim=0)
+                model_output = self.transformer(
+                    latent_model_input,
+                    timestep,
+                    class_labels=torch.cat([uncond_labels, class_labels], dim=0),
+                ).sample
+                model_output_uncond, model_output_text = model_output.chunk(2)
+                model_output = model_output_uncond + float(guidance_scale) * (model_output_text - model_output_uncond)
+            else:
+                model_output = self.transformer(latent_model_input, timestep, class_labels=class_labels).sample
+
+            latents = self.scheduler.step(model_output, timestep, latents).prev_sample
+            if callback is not None and step_index % callback_steps == 0:
+                callback(step_index, timestep, latents)
+
+        image = latents
+        if output_type == "latent":
+            if not return_dict:
+                return (image,)
+            return ImagePipelineOutput(images=image)
+
+        image = (image / 2 + 0.5).clamp(0, 1)
+        image = image.cpu().permute(0, 2, 3, 1).float().numpy()
+
+        if output_type == "pil":
+            image = self.numpy_to_pil(image)
+        elif output_type == "np":
+            image = image
+        else:
+            raise ValueError("output_type must be one of {'pil', 'np', 'latent'}")
+
+        if not return_dict:
+            return (image,)
+        return ImagePipelineOutput(images=image)

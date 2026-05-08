@@ -5,18 +5,28 @@ from pathlib import Path
 
 import gradio as gr
 import torch
+from diffusers import DiffusionPipeline
 
 from deco_diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
-    DeCoPixelAutoencoder,
+    DeCoClassPipeline,
     load_transformer_from_legacy_lightning_checkpoint,
 )
 
 
-def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DeCoPipeline:
+def _resolve_custom_pipeline_path(model_path: str) -> str:
+    local_model_path = Path(model_path)
+    bundled_pipeline = local_model_path / "pipeline.py"
+    if bundled_pipeline.exists():
+        return str(bundled_pipeline)
+    repo_root = Path(__file__).resolve().parent
+    return str(repo_root / "deco_diffusers" / "pipelines" / "deco" / "pipeline_deco_class.py")
+
+
+def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DiffusionPipeline:
     if pretrained_model_path is not None:
-        return DeCoPipeline.from_pretrained(pretrained_model_path)
+        custom_pipeline = _resolve_custom_pipeline_path(pretrained_model_path)
+        return DiffusionPipeline.from_pretrained(pretrained_model_path, custom_pipeline=custom_pipeline)
 
     if legacy_ckpt_path is None:
         raise ValueError("Either --pretrained-model-path or --legacy-ckpt-path must be provided")
@@ -31,8 +41,7 @@ def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | No
         in_channels=3,
     )
     scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-    return DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+    return DeCoClassPipeline(transformer=transformer, scheduler=scheduler)
 
 
 def main():

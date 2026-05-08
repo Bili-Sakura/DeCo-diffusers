@@ -1,3 +1,3 @@
-from deco_diffusers.pipelines.deco.pipeline_deco import DeCoPipeline
+from deco_diffusers.pipelines.deco.pipeline_deco import DeCoClassPipeline, DeCoPipeline, DeCoTextPipeline
 
-__all__ = ["DeCoPipeline"]
+__all__ = ["DeCoClassPipeline", "DeCoTextPipeline", "DeCoPipeline"]
