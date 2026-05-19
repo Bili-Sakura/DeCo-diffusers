@@ -1,13 +1,14 @@
-import torch
-import torch.nn as nn
+# Copyright 2026 The HuggingFace Team.
+from __future__ import annotations
 
 from functools import lru_cache
-from deco_diffusers.models.layers.attention_op import attention
-from deco_diffusers.models.layers.rope import apply_rotary_emb, precompute_freqs_cis_ex2d as precompute_freqs_cis_2d
-from deco_diffusers.models.layers.time_embed import TimestepEmbedder as TimestepEmbedder
-from deco_diffusers.models.layers.patch_embed import Embed as Embed
-from deco_diffusers.models.layers.swiglu import SwiGLU as FeedForward
-from deco_diffusers.models.layers.rmsnorm import RMSNorm as Norm
+
+import torch
+import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
+
+from diffusers.configuration_utils import ConfigMixin, register_to_config
+from diffusers.models.modeling_utils import ModelMixin
 
 def modulate(x, shift, scale):
     return x * (1 + scale) + shift
@@ -327,21 +328,22 @@ class SimpleMLPAdaLN(nn.Module):
 
         return self.final_layer(x)
 
-class PixNerDiT(nn.Module):
+class DeCoT2ITransformer2DModel(ModelMixin, ConfigMixin):
+    config_name = "config.json"
+
+    @register_to_config
     def __init__(
-            self,
-            in_channels=4,
-            num_groups=12,
-            hidden_size=1152,
-            decoder_hidden_size=64,
-            num_encoder_blocks=18,
-            num_decoder_blocks=4,
-            num_text_blocks=4,
-            patch_size=2,
-            txt_embed_dim=1024,
-            txt_max_length=100,
-            weight_path=None,
-            load_ema=False,
+        self,
+        in_channels: int = 4,
+        num_groups: int = 12,
+        hidden_size: int = 1152,
+        decoder_hidden_size: int = 64,
+        num_encoder_blocks: int = 18,
+        num_decoder_blocks: int = 4,
+        num_text_blocks: int = 4,
+        patch_size: int = 2,
+        txt_embed_dim: int = 1024,
+        txt_max_length: int = 100,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -383,9 +385,7 @@ class PixNerDiT(nn.Module):
             TextRefineBlock(self.hidden_size, self.num_groups) for _ in range(self.num_text_blocks)
         ])
         self.initialize_weights()
-        self.precompute_pos = dict()
-        self.weight_path = weight_path
-        self.load_ema = load_ema
+        self.precompute_pos = {}
 
     def fetch_pos(self, height, width, device):
         if (height, width) in self.precompute_pos:

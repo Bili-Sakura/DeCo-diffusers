@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import gradio as gr
 import torch
 
-from deco_diffusers import (
+_REPO_SRC = Path(__file__).resolve().parent / "src"
+if str(_REPO_SRC) not in sys.path:
+    sys.path.insert(0, str(_REPO_SRC))
+
+from diffusers import (
     DeCoFlowMatchEulerDiscreteScheduler,
     DeCoPipeline,
     DeCoPixelAutoencoder,
-    load_transformer_from_legacy_lightning_checkpoint,
 )
+from deco_diffusers.loading import load_transformer_from_legacy_lightning_checkpoint
 
 
 def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DeCoPipeline:

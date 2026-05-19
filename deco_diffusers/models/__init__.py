@@ -1,5 +1,5 @@
-from deco_diffusers.models.autoencoder import DeCoPixelAutoencoder
-from deco_diffusers.models.transformer_deco import DeCoTransformer2DModel, DeCoTransformer2DModelOutput
+from deco_diffusers.models.autoencoders.autoencoder_deco import DeCoPixelAutoencoder
+from deco_diffusers.models.transformers import DeCoTransformer2DModel, DeCoTransformer2DModelOutput
 
 __all__ = [
     "DeCoPixelAutoencoder",

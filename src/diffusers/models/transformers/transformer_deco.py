@@ -1,3 +1,5 @@
+# Copyright 2026 The HuggingFace Team. All rights reserved.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,7 +11,8 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 
-from deco_diffusers.models.transformers import DeCoC2IBackbone, DeCoT2IBackbone
+from diffusers.models.transformers.transformer_deco_c2i import DeCoC2ITransformer2DModel
+from diffusers.models.transformers.transformer_deco_t2i import DeCoT2ITransformer2DModel
 
 
 @dataclass
@@ -45,11 +48,9 @@ class DeCoTransformer2DModel(ModelMixin, ConfigMixin):
         super().__init__()
         if conditioning_type not in {"class", "text"}:
             raise ValueError("conditioning_type must be one of {'class', 'text'}")
-
         self.conditioning_type = conditioning_type
-
         if conditioning_type == "class":
-            self.backbone = DeCoC2IBackbone(
+            self.backbone = DeCoC2ITransformer2DModel(
                 in_channels=in_channels,
                 num_groups=num_groups,
                 hidden_size=hidden_size,
@@ -61,11 +62,9 @@ class DeCoTransformer2DModel(ModelMixin, ConfigMixin):
                 num_classes=num_classes,
                 learn_sigma=learn_sigma,
                 deep_supervision=deep_supervision,
-                weight_path=None,
-                load_ema=False,
             )
         else:
-            self.backbone = DeCoT2IBackbone(
+            self.backbone = DeCoT2ITransformer2DModel(
                 in_channels=in_channels,
                 num_groups=num_groups,
                 hidden_size=hidden_size,
@@ -76,8 +75,6 @@ class DeCoTransformer2DModel(ModelMixin, ConfigMixin):
                 patch_size=patch_size,
                 txt_embed_dim=txt_embed_dim,
                 txt_max_length=txt_max_length,
-                weight_path=None,
-                load_ema=False,
             )
 
     @property
@@ -104,29 +101,14 @@ class DeCoTransformer2DModel(ModelMixin, ConfigMixin):
     ) -> Union[DeCoTransformer2DModelOutput, tuple[torch.Tensor]]:
         batch_size = sample.shape[0]
         t = self._prepare_timestep(timestep=timestep, batch_size=batch_size, sample=sample)
-
         if self.conditioning_type == "class":
             if class_labels is None:
                 raise ValueError("class_labels must be provided when conditioning_type='class'")
-            y = class_labels.to(device=sample.device, dtype=torch.long)
-            model_output = self.backbone(sample, t, y)
+            model_output = self.backbone(sample, t, class_labels.to(device=sample.device, dtype=torch.long))
         else:
             if encoder_hidden_states is None:
                 raise ValueError("encoder_hidden_states must be provided when conditioning_type='text'")
-            y = encoder_hidden_states.to(device=sample.device, dtype=sample.dtype)
-            model_output = self.backbone(sample, t, y)
-
+            model_output = self.backbone(sample, t, encoder_hidden_states.to(device=sample.device, dtype=sample.dtype))
         if not return_dict:
             return (model_output,)
         return DeCoTransformer2DModelOutput(sample=model_output)
-
-    def load_legacy_checkpoint(self, checkpoint_path: str, use_ema: bool = False, strict: bool = False) -> tuple[list[str], list[str]]:
-        checkpoint = torch.load(checkpoint_path, map_location="cpu")
-        state_dict = checkpoint.get("state_dict", checkpoint)
-        prefix = "ema_denoiser." if use_ema else "denoiser."
-        mapped = {key[len(prefix):]: value for key, value in state_dict.items() if key.startswith(prefix)}
-        if len(mapped) == 0:
-            raise ValueError(f"No parameters found in checkpoint with prefix '{prefix}'")
-
-        incompatible = self.backbone.load_state_dict(mapped, strict=strict)
-        return list(incompatible.missing_keys), list(incompatible.unexpected_keys)

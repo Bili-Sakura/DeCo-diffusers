@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from deco_diffusers.models.transformer_deco import DeCoTransformer2DModel
+from deco_diffusers.models import DeCoTransformer2DModel
 
 
 def load_transformer_from_legacy_lightning_checkpoint(

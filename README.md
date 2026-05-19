@@ -135,9 +135,16 @@ pip install -r requirements.txt
 
 + Inference
 ```bash
-# sample from a legacy lightning checkpoint
+# sample from a converted Diffusers directory
+python scripts/sample_deco.py \
+  --model deco-xl-diffusers \
+  --class-label 207 \
+  --output-dir ./outputs
+
+# or via main.py (legacy checkpoint or pretrained directory)
 python main.py sample \
-  --legacy-ckpt-path /path/to/model.ckpt \
+  --pretrained-model-path deco-xl-diffusers \
+  # --legacy-ckpt-path /path/to/model.ckpt \
   --conditioning-type class \
   --class-label 207 \
   --batch-size 4 \

@@ -1,4 +1,10 @@
-from deco_diffusers.models.transformers.dit_c2i_deco import PixNerDiT as DeCoC2IBackbone
-from deco_diffusers.models.transformers.dit_t2i_deco import PixNerDiT as DeCoT2IBackbone
+from deco_diffusers.models.transformers.transformer_deco import DeCoTransformer2DModel, DeCoTransformer2DModelOutput
+from deco_diffusers.models.transformers.transformer_deco_c2i import DeCoC2ITransformer2DModel
+from deco_diffusers.models.transformers.transformer_deco_t2i import DeCoT2ITransformer2DModel
 
-__all__ = ["DeCoC2IBackbone", "DeCoT2IBackbone"]
+__all__ = [
+    "DeCoTransformer2DModel",
+    "DeCoTransformer2DModelOutput",
+    "DeCoC2ITransformer2DModel",
+    "DeCoT2ITransformer2DModel",
+]

@@ -13,7 +13,7 @@ from deco_diffusers import (
     DeCoTransformer2DModel,
     load_transformer_from_legacy_lightning_checkpoint,
 )
-from deco_diffusers.training.cli import run_train_from_args as run_diffusers_train
+from diffusers.training.cli import run_train_from_args as run_diffusers_train
 
 
 def build_parser() -> argparse.ArgumentParser:

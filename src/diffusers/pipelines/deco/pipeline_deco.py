@@ -10,9 +10,9 @@ from diffusers.image_processor import VaeImageProcessor
 from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
 from diffusers.utils.torch_utils import randn_tensor
 
-from deco_diffusers.models.autoencoders.autoencoder_deco import DeCoPixelAutoencoder
-from deco_diffusers.models.transformers import DeCoTransformer2DModel
-from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
+from diffusers.models.autoencoders.autoencoder_deco import DeCoPixelAutoencoder
+from diffusers.models.transformers import DeCoTransformer2DModel
+from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
 
 class DeCoPipeline(DiffusionPipeline):

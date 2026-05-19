@@ -10,9 +10,9 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from deco_diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
-from deco_diffusers.pipelines import DeCoPipeline
-from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
+from diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
+from diffusers.pipelines import DeCoPipeline
+from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
 
 @dataclass

@@ -5,9 +5,9 @@ import argparse
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from deco_diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
-from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
-from deco_diffusers.training import DeCoTrainConfig, DeCoTrainer
+from diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
+from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
+from diffusers.training import DeCoTrainConfig, DeCoTrainer
 
 
 def build_parser() -> argparse.ArgumentParser:
