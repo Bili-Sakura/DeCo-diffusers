@@ -103,60 +103,50 @@ python app.py --legacy-ckpt-path ./ckpts/imagenet256_epoch800.ckpt --num-classes
 In class-to-image(ImageNet) experiments, We use [ADM evaluation suite](https://github.com/openai/guided-diffusion/tree/main/evaluations) to report FID. 
 In text-to-image experiments, we use BLIP3o dataset as training set and utilize GenEval and DPG to collect metrics.
 
-+ Diffusers-native API
++ Diffusers-native API ([NiT-diffusers](https://github.com/Bili-Sakura/NiT-diffusers) layout)
+
+Install and use components from `src/diffusers/` (see [README_DIFFUSERS.md](README_DIFFUSERS.md)):
+
+```bash
+pip install -e .
+```
+
 ```python
-from deco_diffusers import (
-    DeCoTransformer2DModel,
-    DeCoPixelAutoencoder,
-    DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
-    load_transformer_from_legacy_lightning_checkpoint,
-)
+from diffusers import DeCoPipeline
 
-# Build directly from config-like kwargs
-transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
-scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+pipe = DeCoPipeline.from_pretrained("deco-xl-diffusers")
+images = pipe(class_labels=[207], batch_size=1, num_inference_steps=50, guidance_scale=4.0).images
+```
 
-# Or load transformer weights from existing Lightning checkpoints
-transformer = load_transformer_from_legacy_lightning_checkpoint(
-    "/path/to/checkpoint.ckpt",
-    conditioning_type="class",
-    use_ema=True,
-)
+Convert a legacy Lightning checkpoint:
+
+```bash
+python scripts/convert_deco_to_diffusers.py \
+  --checkpoint /path/to/model.ckpt \
+  --output deco-xl-diffusers \
+  --model-size deco-xl-c2i
 ```
 
 + Environments
 ```bash
-# for installation (recommend python 3.10)
-pip install -r requirements.txt
+pip install -e ".[dev,demo]"
 ```
 
 + Inference
 ```bash
-# sample from a legacy lightning checkpoint
-python main.py sample \
-  --legacy-ckpt-path /path/to/model.ckpt \
-  --conditioning-type class \
+python scripts/sample_deco.py \
+  --model deco-xl-diffusers \
   --class-label 207 \
-  --batch-size 4 \
-  --height 256 \
-  --width 256 \
   --output-dir ./outputs
+
+python app.py --pretrained-model-path deco-xl-diffusers
 ```
 
 + Train
 ```bash
-# class-conditioned training with ImageFolder layout:
-# train_data_dir/
-#   class_0/*.png
-#   class_1/*.png
-python main.py train \
+python scripts/train_deco.py \
   --train-data-dir /path/to/train_data_dir \
-  --output-dir ./workdirs/deco_diffusers \
-  --conditioning-type class \
-  --num-classes 1000 \
+  --output-dir ./workdirs/deco-train \
   --resolution 256 \
   --batch-size 8 \
   --max-train-steps 100000

@@ -1,62 +1,37 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import gradio as gr
 import torch
 
-from deco_diffusers import (
-    DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
-    DeCoPixelAutoencoder,
-    load_transformer_from_legacy_lightning_checkpoint,
-)
+REPO_SRC = Path(__file__).resolve().parent / "src"
+if str(REPO_SRC) not in sys.path:
+    sys.path.insert(0, str(REPO_SRC))
+
+from diffusers import DeCoFlowMatchEulerDiscreteScheduler, DeCoPipeline, DeCoPixelAutoencoder
 
 
-def _load_pipeline(pretrained_model_path: str | None, legacy_ckpt_path: str | None, num_classes: int | None = None) -> DeCoPipeline:
-    if pretrained_model_path is not None:
-        return DeCoPipeline.from_pretrained(pretrained_model_path)
-
-    if legacy_ckpt_path is None:
-        raise ValueError("Either --pretrained-model-path or --legacy-ckpt-path must be provided")
-
-    if num_classes is None:
-        num_classes = 1000
-
-    transformer = load_transformer_from_legacy_lightning_checkpoint(
-        legacy_ckpt_path,
-        conditioning_type="class",
-        num_classes=num_classes,
-        in_channels=3,
-    )
-    scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-    vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-    return DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+def _load_pipeline(pretrained_model_path: str) -> DeCoPipeline:
+    return DeCoPipeline.from_pretrained(pretrained_model_path)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DeCo diffusers-native Gradio demo")
-    parser.add_argument("--pretrained-model-path", type=str, default=None)
-    parser.add_argument("--legacy-ckpt-path", type=str, default=None)
-    parser.add_argument("--num-classes", type=int, default=1000)
+    parser = argparse.ArgumentParser(description="DeCo Gradio demo (Diffusers pipeline)")
+    parser.add_argument("--pretrained-model-path", type=str, required=True)
     parser.add_argument("--server-name", type=str, default="0.0.0.0")
     parser.add_argument("--server-port", type=int, default=23231)
     args = parser.parse_args()
 
-    pipe = _load_pipeline(
-        pretrained_model_path=args.pretrained_model_path,
-        legacy_ckpt_path=args.legacy_ckpt_path,
-        num_classes=args.num_classes,
-    )
-
+    pipe = _load_pipeline(args.pretrained_model_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     pipe = pipe.to(device)
 
     def generate(class_label: int, batch_size: int, seed: int, steps: int, guidance: float, height: int, width: int):
         generator = torch.Generator(device=device).manual_seed(int(seed))
         class_labels = torch.full((batch_size,), int(class_label), device=device, dtype=torch.long)
-
         images = pipe(
             batch_size=batch_size,
             class_labels=class_labels,

@@ -1,0 +1,3 @@
+from diffusers.schedulers.scheduling_deco_flow_match_euler_discrete import DeCoFlowMatchEulerDiscreteScheduler
+
+__all__ = ['DeCoFlowMatchEulerDiscreteScheduler']

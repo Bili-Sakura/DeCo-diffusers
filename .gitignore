@@ -4,3 +4,8 @@ ckpts
 src/diffusion/flow_matching/sampling_back.py
 __pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+
+*.egg-info/
+.pytest_cache/
