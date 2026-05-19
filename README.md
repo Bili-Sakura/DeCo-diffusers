@@ -103,28 +103,23 @@ python app.py --legacy-ckpt-path ./ckpts/imagenet256_epoch800.ckpt --num-classes
 In class-to-image(ImageNet) experiments, We use [ADM evaluation suite](https://github.com/openai/guided-diffusion/tree/main/evaluations) to report FID. 
 In text-to-image experiments, we use BLIP3o dataset as training set and utilize GenEval and DPG to collect metrics.
 
-+ Diffusers-native API
++ Diffusers-native API ([NiT-diffusers](https://github.com/Bili-Sakura/NiT-diffusers) layout)
+
+Install: `pip install -e .` — see [README_DIFFUSERS.md](README_DIFFUSERS.md) for conversion and upstreaming.
+
 ```python
-from deco_diffusers import (
-    DeCoTransformer2DModel,
-    DeCoPixelAutoencoder,
-    DeCoFlowMatchEulerDiscreteScheduler,
-    DeCoPipeline,
-    load_transformer_from_legacy_lightning_checkpoint,
-)
+from deco_diffusers import DeCoPipeline
 
-# Build directly from config-like kwargs
-transformer = DeCoTransformer2DModel(conditioning_type="class", num_classes=1000)
-scheduler = DeCoFlowMatchEulerDiscreteScheduler()
-vae = DeCoPixelAutoencoder(scale=1.0, shift=0.0)
-pipe = DeCoPipeline(transformer=transformer, scheduler=scheduler, vae=vae)
+pipe = DeCoPipeline.from_pretrained("/path/to/deco-xl-diffusers")
+```
 
-# Or load transformer weights from existing Lightning checkpoints
-transformer = load_transformer_from_legacy_lightning_checkpoint(
-    "/path/to/checkpoint.ckpt",
-    conditioning_type="class",
-    use_ema=True,
-)
+Convert a legacy Lightning checkpoint once:
+
+```bash
+python scripts/convert_deco_to_diffusers.py \
+  --checkpoint /path/to/model.ckpt \
+  --output deco-xl-diffusers \
+  --model-size deco-xl-c2i
 ```
 
 + Environments
