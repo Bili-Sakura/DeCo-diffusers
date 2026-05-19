@@ -5,10 +5,7 @@ from typing import Optional, Union
 import numpy as np
 import torch
 
-from diffusers import DiffusionPipeline
-from diffusers.image_processor import VaeImageProcessor
-from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
-from diffusers.utils.torch_utils import randn_tensor
+from diffusers.dependency import DiffusionPipeline, ImagePipelineOutput, VaeImageProcessor, randn_tensor
 
 from diffusers.models.autoencoders.autoencoder_deco import DeCoPixelAutoencoder
 from diffusers.models.transformers import DeCoTransformer2DModel

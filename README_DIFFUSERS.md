@@ -1,32 +1,37 @@
 DeCo Diffusers integration
 ==========================
 
-This repository follows the layout used for upstream Diffusers integration (see also
-[NiT-diffusers](https://github.com/Bili-Sakura/NiT-diffusers)). Core components live under
-`src/diffusers`:
+Native [Diffusers](https://github.com/huggingface/diffusers) components for DeCo, following the layout of
+[NiT-diffusers](https://github.com/Bili-Sakura/NiT-diffusers).
 
-- `models/transformers/transformer_deco.py` — `DeCoTransformer2DModel` (`ModelMixin` / `ConfigMixin`)
-- `models/transformers/transformer_deco_c2i.py` — class-conditioned backbone
-- `models/transformers/transformer_deco_t2i.py` — text-conditioned backbone
-- `schedulers/scheduling_deco_flow_match_euler_discrete.py` — flow-matching Euler scheduler
-- `pipelines/deco/pipeline_deco.py` — `DeCoPipeline` for sampling
-- `scripts/convert_deco_to_diffusers.py` — convert legacy Lightning checkpoints
+```
+src/diffusers/
+├── models/
+│   ├── autoencoders/autoencoder_deco.py
+│   ├── layers/
+│   └── transformers/
+│       ├── transformer_deco.py
+│       ├── transformer_deco_c2i.py
+│       └── transformer_deco_t2i.py
+├── pipelines/deco/pipeline_deco.py
+└── schedulers/scheduling_deco_flow_match_euler_discrete.py
+```
 
-Install locally
----------------
+Install
+-------
 
 ```bash
 pip install -e .
 ```
 
-Or add `src` to `PYTHONPATH` when running scripts:
+Scripts add `src/` to `PYTHONPATH` automatically. You can also export:
 
 ```bash
 export PYTHONPATH="${PWD}/src:${PYTHONPATH}"
 ```
 
-Convert a legacy checkpoint
----------------------------
+Convert a legacy Lightning checkpoint
+---------------------------------------
 
 ```bash
 python scripts/convert_deco_to_diffusers.py \
@@ -36,10 +41,8 @@ python scripts/convert_deco_to_diffusers.py \
   --check-load
 ```
 
-The output directory contains `model_index.json`, `transformer/`, `scheduler/`, and `vae/`.
-
-Sample from a converted checkpoint
-----------------------------------
+Sample
+------
 
 ```bash
 python scripts/sample_deco.py \
@@ -50,13 +53,26 @@ python scripts/sample_deco.py \
   --guidance-scale 4.0
 ```
 
-Run tests
----------
+Train (class-conditioned)
+-------------------------
 
 ```bash
-pip install -e ".[dev]"
-pytest tests/test_deco_diffusers.py
+python scripts/train_deco.py \
+  --train-data-dir /path/to/imagenet/train \
+  --output-dir ./outputs/deco-train
 ```
 
-For upstreaming to `huggingface/diffusers`, copy the files under `src/diffusers` into the
-corresponding Diffusers package locations and register the classes in Diffusers' lazy import tables.
+Python API
+----------
+
+```python
+from diffusers import DeCoPipeline
+
+pipe = DeCoPipeline.from_pretrained("deco-xl-diffusers")
+images = pipe(class_labels=[207], batch_size=1, num_inference_steps=50, guidance_scale=4.0).images
+```
+
+Upstreaming
+-----------
+
+Copy `src/diffusers/models`, `pipelines`, and `schedulers` subtrees into the Hugging Face `diffusers` package and register classes in the lazy import tables.

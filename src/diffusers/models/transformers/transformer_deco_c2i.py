@@ -13,8 +13,7 @@ import torch.nn as nn
 from torch.nn.functional import scaled_dot_product_attention
 from torch.utils.checkpoint import checkpoint
 
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.models.modeling_utils import ModelMixin
+from diffusers.dependency import ConfigMixin, ModelMixin, register_to_config
 
 from diffusers.models.layers.patch_embed import Embed
 from diffusers.models.layers.rmsnorm import RMSNorm

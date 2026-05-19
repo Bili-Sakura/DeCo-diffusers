@@ -105,15 +105,20 @@ In text-to-image experiments, we use BLIP3o dataset as training set and utilize 
 
 + Diffusers-native API ([NiT-diffusers](https://github.com/Bili-Sakura/NiT-diffusers) layout)
 
-Install: `pip install -e .` — see [README_DIFFUSERS.md](README_DIFFUSERS.md) for conversion and upstreaming.
+Install and use components from `src/diffusers/` (see [README_DIFFUSERS.md](README_DIFFUSERS.md)):
 
-```python
-from deco_diffusers import DeCoPipeline
-
-pipe = DeCoPipeline.from_pretrained("/path/to/deco-xl-diffusers")
+```bash
+pip install -e .
 ```
 
-Convert a legacy Lightning checkpoint once:
+```python
+from diffusers import DeCoPipeline
+
+pipe = DeCoPipeline.from_pretrained("deco-xl-diffusers")
+images = pipe(class_labels=[207], batch_size=1, num_inference_steps=50, guidance_scale=4.0).images
+```
+
+Convert a legacy Lightning checkpoint:
 
 ```bash
 python scripts/convert_deco_to_diffusers.py \
@@ -124,41 +129,24 @@ python scripts/convert_deco_to_diffusers.py \
 
 + Environments
 ```bash
-# for installation (recommend python 3.10)
-pip install -r requirements.txt
+pip install -e ".[dev,demo]"
 ```
 
 + Inference
 ```bash
-# sample from a converted Diffusers directory
 python scripts/sample_deco.py \
   --model deco-xl-diffusers \
   --class-label 207 \
   --output-dir ./outputs
 
-# or via main.py (legacy checkpoint or pretrained directory)
-python main.py sample \
-  --pretrained-model-path deco-xl-diffusers \
-  # --legacy-ckpt-path /path/to/model.ckpt \
-  --conditioning-type class \
-  --class-label 207 \
-  --batch-size 4 \
-  --height 256 \
-  --width 256 \
-  --output-dir ./outputs
+python app.py --pretrained-model-path deco-xl-diffusers
 ```
 
 + Train
 ```bash
-# class-conditioned training with ImageFolder layout:
-# train_data_dir/
-#   class_0/*.png
-#   class_1/*.png
-python main.py train \
+python scripts/train_deco.py \
   --train-data-dir /path/to/train_data_dir \
-  --output-dir ./workdirs/deco_diffusers \
-  --conditioning-type class \
-  --num-classes 1000 \
+  --output-dir ./workdirs/deco-train \
   --resolution 256 \
   --batch-size 8 \
   --max-train-steps 100000

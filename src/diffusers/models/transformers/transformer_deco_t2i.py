@@ -7,8 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
 
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.models.modeling_utils import ModelMixin
+from diffusers.dependency import ConfigMixin, ModelMixin, register_to_config
 
 def modulate(x, shift, scale):
     return x * (1 + scale) + shift

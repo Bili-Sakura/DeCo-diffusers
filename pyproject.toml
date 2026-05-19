@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "diffusers-deco"
-version = "0.1.0"
+version = "0.2.0"
 description = "Diffusers-style DeCo pixel diffusion components."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,12 +12,13 @@ license = { text = "Apache-2.0" }
 dependencies = [
     "diffusers>=0.30.1",
     "torch",
+    "torchvision",
     "safetensors",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+demo = ["gradio"]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["deco_diffusers*"]
+where = ["src"]

@@ -16,6 +16,10 @@ from typing import Any
 
 import torch
 
+REPO_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(REPO_SRC) not in sys.path:
+    sys.path.insert(0, str(REPO_SRC))
+
 try:
     from safetensors.torch import load_file as safe_load_file
     from safetensors.torch import save_file as safe_save_file
@@ -23,9 +27,9 @@ except Exception:  # pragma: no cover
     safe_load_file = None
     safe_save_file = None
 
-from deco_diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
-from deco_diffusers.pipelines import DeCoPipeline
-from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
+from diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
+from diffusers.pipelines import DeCoPipeline
+from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
 
 MODEL_PRESETS: dict[str, dict[str, Any]] = {

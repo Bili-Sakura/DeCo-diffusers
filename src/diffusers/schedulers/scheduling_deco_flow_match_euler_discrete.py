@@ -4,8 +4,7 @@ from typing import Optional, Union
 
 import torch
 
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.schedulers.scheduling_utils import SchedulerMixin, SchedulerOutput
+from diffusers.dependency import ConfigMixin, SchedulerMixin, SchedulerOutput, register_to_config
 
 
 def _shift_respace_fn(t: torch.Tensor, shift: float = 1.0) -> torch.Tensor:

@@ -2,9 +2,9 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from deco_diffusers.models import DeCoTransformer2DModel
-from deco_diffusers.pipelines import DeCoPipeline
-from deco_diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
+from diffusers.models.transformers import DeCoTransformer2DModel
+from diffusers.pipelines import DeCoPipeline
+from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
 
 
 def test_deco_transformer_class_forward():

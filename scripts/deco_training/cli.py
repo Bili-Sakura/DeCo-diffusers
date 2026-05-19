@@ -7,7 +7,7 @@ from torchvision import datasets, transforms
 
 from diffusers.models import DeCoPixelAutoencoder, DeCoTransformer2DModel
 from diffusers.schedulers import DeCoFlowMatchEulerDiscreteScheduler
-from diffusers.training import DeCoTrainConfig, DeCoTrainer
+from .trainer import DeCoTrainConfig, DeCoTrainer
 
 
 def build_parser() -> argparse.ArgumentParser:

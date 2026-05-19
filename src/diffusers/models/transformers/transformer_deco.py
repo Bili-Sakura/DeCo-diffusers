@@ -7,9 +7,7 @@ from typing import Optional, Union
 
 import torch
 
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.models.modeling_utils import ModelMixin
-from diffusers.utils import BaseOutput
+from diffusers.dependency import BaseOutput, ConfigMixin, ModelMixin, register_to_config
 
 from diffusers.models.transformers.transformer_deco_c2i import DeCoC2ITransformer2DModel
 from diffusers.models.transformers.transformer_deco_t2i import DeCoT2ITransformer2DModel

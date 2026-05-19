@@ -9,7 +9,11 @@ from pathlib import Path
 
 import torch
 
-from deco_diffusers import DeCoPipeline
+REPO_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(REPO_SRC) not in sys.path:
+    sys.path.insert(0, str(REPO_SRC))
+
+from diffusers import DeCoPipeline
 
 
 def parse_args() -> argparse.Namespace:
